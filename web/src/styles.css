@@ -1,0 +1,117 @@
+/* System: Swiss precision (P2) + stub receipt card (P1) */
+:root {
+  --paper: #F3F1EC; --surface: #FAF9F6; --sunk: #E9E6DF;
+  --ink: #1B1A17; --ink-2: #5E5A52; --ink-3: #8D887E;
+  --rule: rgba(27, 26, 23, .10); --rule-strong: rgba(27, 26, 23, .22);
+  --accent: #D2461E; --accent-ink: #FAF9F6;
+  --ok: #3D6B4F; --warn: #9A6A12;
+  --shadow: 0 1px 0 rgba(27, 26, 23, .04), 0 12px 32px -18px rgba(60, 48, 30, .28);
+  --r: 2px;
+  --f-sans: "Archivo", ui-sans-serif, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --t-xs: .64rem; --t-s: .8rem; --t-b: 1rem; --t-m: 1.25rem; --t-l: 1.563rem;
+  --t-xl: 1.953rem; --t-2xl: 3.052rem; --t-3xl: 4.768rem;
+  --ease: cubic-bezier(.23, 1, .32, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141412; --surface: #1C1B18; --sunk: #252420;
+    --ink: #F1EEE7; --ink-2: #C9C4BA; --ink-3: #A39E94;
+    --rule: rgba(236, 233, 226, .14); --rule-strong: rgba(236, 233, 226, .32);
+    --accent: #E8633A; --accent-ink: #141412; --ok: #7FAE8F; --warn: #D9A94A;
+    --shadow: 0 12px 32px -18px rgba(0, 0, 0, .6);
+  }
+}
+* { box-sizing: border-box; margin: 0 }
+body { background: var(--paper); color: var(--ink); font: 400 var(--t-b)/1.5 var(--f-sans); font-stretch: 96%; min-height: 100vh }
+.num, .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums lining-nums slashed-zero }
+.lbl { font: 500 var(--t-xs)/1.2 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3) }
+h1, h2, h3 { font-weight: 600; text-wrap: balance; letter-spacing: -.018em; line-height: 1.1 }
+p { text-wrap: pretty }
+a { color: inherit }
+i.ph-light { font-size: 1.05em; vertical-align: -.12em }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px }
+@media (min-width: 768px) { .wrap { padding: 0 48px } }
+
+/* top bar */
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; gap: 16px }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -.02em; text-decoration: none }
+.brand svg { flex: none }
+.net { font: 500 var(--t-xs) var(--f-mono); color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase }
+
+/* buttons */
+.btn { font: 500 var(--t-s)/1 var(--f-sans); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 20px; border-radius: var(--r); border: 1px solid var(--ink); background: var(--ink); color: var(--paper);
+  cursor: pointer; transition: transform 120ms var(--ease), opacity 150ms var(--ease) }
+.btn:hover { opacity: .88 }
+.btn:active { transform: scale(.97) }
+.btn:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule-strong) }
+.btn.wide { width: 100% }
+.btn .spin { width: 12px; height: 12px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* fields */
+.field { display: grid; gap: 6px }
+.field input { font: 400 var(--t-b) var(--f-sans); background: var(--surface); color: var(--ink); border: 1px solid var(--rule-strong);
+  border-radius: var(--r); padding: 12px 14px; width: 100% }
+.field input.num { font-family: var(--f-mono) }
+.field small { color: var(--ink-3); font-size: var(--t-xs) }
+
+/* badges */
+.badge { display: inline-flex; align-items: center; gap: 6px; font: 500 var(--t-xs)/1 var(--f-mono); letter-spacing: .06em;
+  text-transform: uppercase; padding: 6px 8px; border: 1px solid var(--rule-strong); border-radius: var(--r); color: var(--ink-2); white-space: nowrap }
+.badge.ok { color: var(--ok); border-color: currentColor }
+.badge.warn { color: var(--warn); border-color: currentColor }
+.badge.accent { color: var(--accent); border-color: currentColor }
+
+/* stub receipt card */
+.receipt { background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r); box-shadow: var(--shadow);
+  display: grid; grid-template-columns: 1fr 56px; position: relative }
+.receipt .body { padding: 24px; display: grid; gap: 18px; min-width: 0 }
+.receipt .stub { border-left: 1px dashed var(--rule-strong); display: flex; align-items: center; justify-content: center; padding: 20px 0;
+  background: var(--surface); transition: transform 260ms var(--ease), opacity 260ms var(--ease) }
+.receipt .stub span { writing-mode: vertical-rl; transform: rotate(180deg); font: 500 var(--t-xs) var(--f-mono); letter-spacing: .1em;
+  text-transform: uppercase; color: var(--accent); white-space: nowrap }
+.receipt::before, .receipt::after { content: ""; position: absolute; right: 48px; width: 16px; height: 8px; background: var(--paper);
+  border: 1px solid var(--rule-strong); z-index: 1 }
+.receipt::before { top: -1px; border-top: 0; border-radius: 0 0 8px 8px }
+.receipt::after { bottom: -1px; border-bottom: 0; border-radius: 8px 8px 0 0 }
+.receipt.torn .stub { transform: translate(14px, 6px) rotate(3deg) }
+.rc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px }
+.rc-top p + p { margin-top: 4px; font-size: var(--t-m) }
+.rc-amt { font: 400 var(--t-2xl)/1 var(--f-mono); letter-spacing: -.04em; font-variant-numeric: tabular-nums slashed-zero; overflow-wrap: anywhere }
+.rc-amt small { font-size: var(--t-s); color: var(--ink-3); letter-spacing: 0; margin-left: 6px }
+.bar { display: flex; height: 8px; gap: 2px }
+.bar i { display: block; height: 100%; transform-origin: left; animation: grow 420ms var(--ease) both }
+.bar .n { flex: 92; background: var(--ink) }
+.bar .f { flex: 0; background: var(--ink-3); animation-delay: 50ms }
+.bar .s { flex: 8; background: var(--accent); animation-delay: 70ms }
+@keyframes grow { from { transform: scaleX(0) } }
+.legend { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; font-size: var(--t-s) }
+.legend dt { display: flex; align-items: center; gap: 8px; color: var(--ink-2) }
+.legend dd { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right }
+.sq { width: 8px; height: 8px; display: inline-block }
+.rc-foot { display: flex; justify-content: space-between; gap: 12px; font-size: var(--t-xs); color: var(--ink-3); flex-wrap: wrap }
+.rc-foot a { font-family: var(--f-mono) }
+
+/* skeleton */
+.sk { background: var(--sunk); border-radius: var(--r); animation: pulse 1.2s ease-in-out infinite; color: transparent !important }
+@keyframes pulse { 50% { opacity: .55 } }
+
+/* entrance */
+.rise { animation: rise 250ms var(--ease) both; animation-delay: calc(var(--i, 0) * 60ms) }
+@keyframes rise { from { opacity: 0; transform: translateY(6px) } }
+
+.error { color: var(--accent); font-size: var(--t-s) }
+.hidden { display: none !important }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important }
+}
+.field input::placeholder { color: var(--ink-3); opacity: .7 }
+@media (prefers-color-scheme: dark) {
+  .field input::placeholder { opacity: .85 }
+  .field input, .field select { background: var(--sunk) }
+}

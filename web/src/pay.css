@@ -1,0 +1,27 @@
+.pay { display: grid; gap: 48px; padding: 32px 0 96px }
+@media (min-width: 960px) { .pay { grid-template-columns: 7fr 5fr; column-gap: 64px; padding: 72px 0 128px; align-items: start } }
+.summary h1 { font-size: var(--t-xl); margin-top: 12px }
+.due { font-size: clamp(3rem, 1.5rem + 6vw, 5.96rem); line-height: .9; letter-spacing: -.05em; margin: 40px 0 32px; overflow-wrap: anywhere }
+.due small { font-size: var(--t-m); letter-spacing: 0; color: var(--ink-3); margin-left: 10px }
+.lines { border-top: 1px solid var(--rule-strong) }
+.lines div { display: grid; grid-template-columns: 120px 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); font-size: var(--t-s) }
+.lines dt { color: var(--ink-3) }
+.lines dd { overflow-wrap: anywhere }
+.steps { list-style: none; padding: 0; margin-top: 48px; display: grid; gap: 2px }
+.step { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 12px 0; align-items: start; color: var(--ink-3); transition: color 200ms var(--ease) }
+.step .dot { font-size: var(--t-xs); padding-top: 3px }
+.step small { font-size: var(--t-xs) }
+.step.now { color: var(--ink) }
+.step.now .dot { color: var(--accent) }
+.step.done { color: var(--ink-2) }
+.step.done .dot { color: var(--ok) }
+.side { display: grid; gap: 20px }
+.note { font-size: var(--t-s); color: var(--ink-2) }
+.empty { padding: 96px 0; display: grid; gap: 16px; max-width: 52ch }
+.empty h1 { font-size: var(--t-xl) }
+
+.desktop-only-note { display: flex; gap: 8px; align-items: flex-start; color: var(--ink-3) }
+@media (min-width: 900px) { .desktop-only-note { display: none } }
+
+.to-addr { font-size: var(--t-s); color: var(--ink-3); letter-spacing: .04em }
+.lines .u { color: var(--ink-3); font-size: var(--t-xs) }

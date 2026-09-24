@@ -1,0 +1,13 @@
+# Rust build output
+target
+
+# Local settings
+.soroban
+.stellar
+.playwright-mcp
+web/.env
+
+# Dependencies and caches
+node_modules/
+__pycache__/
+*.pyc

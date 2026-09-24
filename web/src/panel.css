@@ -1,0 +1,149 @@
+.intro { padding: 96px 0 160px; display: grid; gap: 24px; max-width: 60ch; justify-items: start }
+.intro h1 { font-size: clamp(2.2rem, 1.2rem + 3vw, 3.8rem); line-height: .95; letter-spacing: -.035em; font-stretch: 88% }
+.intro p:not(.lbl) { color: var(--ink-2) }
+
+.hero { display: grid; gap: 40px; padding: 48px 0 64px; border-bottom: 1px solid var(--rule-strong) }
+@media (min-width: 900px) { .hero { grid-template-columns: 7fr 5fr; align-items: end } }
+.kpi { font-size: clamp(3.2rem, 1.5rem + 6.5vw, 6.5rem); line-height: .88; letter-spacing: -.05em; margin: 20px 0 16px; overflow-wrap: anywhere; justify-self: start }
+.kpi small, .stats small, .th-num small { font-size: var(--t-s); letter-spacing: 0; color: var(--ink-3); margin-left: 8px }
+.kpi-note { color: var(--ink-2); font-size: var(--t-s); max-width: 44ch }
+.stats { border-top: 1px solid var(--rule-strong) }
+.stats div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); font-size: var(--t-s) }
+.stats dt { color: var(--ink-2) }
+
+.grid2 { display: grid; gap: 1px; background: var(--rule-strong); border: 1px solid var(--rule-strong); margin: 64px 0 96px }
+@media (min-width: 900px) { .grid2 { grid-template-columns: 1fr 1fr } }
+.block { background: var(--surface); padding: 28px 24px; display: grid; gap: 18px; align-content: start; min-width: 0 }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+.th-num { font-size: var(--t-2xl); line-height: 1; letter-spacing: -.04em; overflow-wrap: anywhere }
+.meter { height: 8px; background: var(--sunk) }
+.meter i { display: block; height: 100%; background: var(--ink); transform-origin: left; transition: transform 300ms var(--ease) }
+.meter i.over { background: var(--warn) }
+.th-help { font-size: var(--t-s); color: var(--ink-2) }
+.fx { border-top: 1px solid var(--rule); padding-top: 18px }
+.linkout { display: grid; gap: 12px; border-top: 1px solid var(--rule); padding-top: 18px }
+.linkout code { font-size: var(--t-xs); overflow-wrap: anywhere; color: var(--ink-2) }
+
+.sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 24px; flex-wrap: wrap }
+.sec-h h2 { font-size: var(--t-xl) }
+.cards { display: grid; gap: 24px; padding-bottom: 128px }
+@media (min-width: 900px) { .cards { grid-template-columns: 1fr 1fr } }
+.emptybox { grid-column: 1 / -1; border: 1px dashed var(--rule-strong); padding: 48px 24px; display: grid; justify-items: center; gap: 12px; color: var(--ink-2); text-align: center; font-size: var(--t-s) }
+.emptybox i { font-size: 2rem }
+.intro .name { width: min(100%, 360px) }
+.actions { display: flex; gap: 12px; flex-wrap: wrap }
+.alt { font-size: var(--t-s) }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer }
+.linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.withdraw { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 28px; max-width: 520px }
+@media (min-width: 600px) { .withdraw { grid-template-columns: 1fr 140px } .withdraw .btn, .withdraw .wd-out { grid-column: 1 / -1; justify-self: start } }
+.wd-out { font-size: var(--t-s); color: var(--ink-2) }
+.wd-out:empty { display: none }
+.net i.ph-light { color: var(--accent) }
+.cards > div { display: grid; gap: 12px; align-content: start }
+.rhe-open { justify-self: start }
+dialog.rhe { margin: auto; border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--surface); color: var(--ink); padding: 0;
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-shadow: var(--shadow) }
+dialog.rhe::backdrop { background: rgba(20, 20, 18, .45) }
+dialog.rhe[open] { animation: rise 220ms var(--ease) both }
+.rhe-body { padding: 28px 24px; display: grid; gap: 18px }
+.rhe-body h3 { font-size: var(--t-l); margin-top: 6px }
+.btn.icon { padding: 10px }
+.rhe-fixed { border-top: 1px solid var(--rule-strong) }
+.rhe-fixed div { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: var(--t-s) }
+.rhe-fixed dt { color: var(--ink-3) }
+.field select { font: 400 var(--t-b) var(--f-sans); background: var(--surface); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: var(--r); padding: 12px 14px; width: 100% }
+.rhe-preview { background: var(--sunk); padding: 16px; font-size: var(--t-xs); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--r) }
+.rhe-note { font-size: var(--t-xs); color: var(--ink-2) }
+.th-rows { border-top: 1px solid var(--rule) }
+.th-rows div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: var(--t-s) }
+.th-rows dt { color: var(--ink-2) }
+.th-rows dd { text-align: right }
+.howto { border: 1px solid var(--rule-strong); padding: 12px 14px; font-size: var(--t-s); color: var(--ink-2) }
+.howto summary { cursor: pointer; color: var(--ink); font-weight: 500 }
+.howto summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.howto ol { margin: 12px 0 8px; padding-left: 18px; display: grid; gap: 6px }
+.howto p { font-size: var(--t-xs) }
+.offramp { margin: 10px 0 4px; padding: 12px 14px; border: 1px solid var(--rule-strong); background: var(--surface); display: grid; gap: 6px; font-size: var(--t-s); color: var(--ink2) }
+.offramp b { color: var(--ink); font-weight: 500 }
+.offramp small { font-size: var(--t-xs); color: var(--ink3) }
+
+/* Read-only notice and the source of the tax figures. */
+.note { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; border: 1px solid var(--rule-strong); padding: 12px 16px; color: var(--ink-2); font-size: var(--t-s) }
+.note a { color: var(--ink) }
+.th-rows .src, .howto .src { color: var(--ink-3); font-size: var(--t-s); line-height: 1.55 }
+.howto .src b { color: var(--ink-2); font-weight: 500 }
+/* Secondary note next to a figure or a disabled control. */
+.u { color: var(--ink-3); font-size: var(--t-s) }
+
+/* The prepayment figure and its caveat live in separate blocks, so the sentence
+   does not break halfway when the number grows. */
+.th-cap { font-size: var(--t-s); color: var(--ink-3); margin-top: -6px }
+.th-scale { display: flex; justify-content: space-between; font-size: var(--t-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; margin-top: 6px }
+/* Rows whose text does not fit in two columns: label on top, full content below. */
+.th-rows div.wide { display: block }
+.th-rows div.wide dd { text-align: left; color: var(--ink-2); margin-top: 2px; white-space: normal }
+.check { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; font-size: var(--t-s); color: var(--ink-2); cursor: pointer }
+.check input { margin-top: 3px; accent-color: var(--accent) }
+.check small { display: block; color: var(--ink-3); margin-top: 3px; line-height: 1.5 }
+.warn-text { color: var(--warn) }
+select.inline { background: none; border: 0; color: inherit; font: inherit; padding: 0; cursor: pointer; border-bottom: 1px solid var(--rule-strong) }
+
+/* The disclosure used the browser triangle inside an interface with a single icon set. */
+.howto summary { list-style: none }
+.howto summary::-webkit-details-marker { display: none }
+.howto summary::marker { content: "" }
+/* An empty meter read the same as a full one: the track needs its own contrast. */
+.meter { border: 1px solid var(--rule-strong) }
+/* The withdraw button shared height and border with the fields above it. */
+.withdraw .btn { border-color: var(--ink-3) }
+.th-scale span:last-child { color: var(--ink-2) }
+
+/* The three steps: what a newcomer needs before deciding to create a wallet. */
+.how { border-top: 1px solid var(--rule-strong); padding: 40px 0 120px; display: grid; gap: 28px }
+.how ol { display: grid; gap: 1px; background: var(--rule-strong); border: 1px solid var(--rule-strong); list-style: none; padding: 0 }
+@media (min-width: 860px) { .how ol { grid-template-columns: repeat(3, 1fr) } }
+.how li { background: var(--surface); padding: 24px 22px; display: grid; gap: 12px; align-content: start }
+.how b { display: block; font-size: var(--t-m); font-weight: 600; margin-bottom: 6px }
+.how small { color: var(--ink-2); line-height: 1.6 }
+.how .alt a { display: inline-flex; gap: 6px; align-items: center }
+
+/* An amount split across lines is a hard error in a money interface. */
+.th-rows dd, .stats dd { white-space: nowrap }
+.th-rows div { align-items: baseline }
+/* The link form is short and the tax block is very long: keep the form in view while
+   scrolling so half the screen does not sit empty. */
+@media (min-width: 900px) {
+  .grid2 { align-items: start }
+  #newlink { position: sticky; top: 24px }
+}
+/* Past a certain width the tax block splits in two: reading on the left, inputs on
+   the right. The measure is the block width, since a media query on the window split
+   a 500px column on wide screens and broke the labels word by word. */
+.block { container-type: inline-size }
+@container (min-width: 720px) {
+  .th-body { display: grid; grid-template-columns: 1.05fr .95fr; gap: 32px; align-items: start }
+  .th-body > div { display: grid; gap: 18px; align-content: start }
+}
+
+/* The reserve verdict, placed right next to the figure it qualifies. */
+.tag { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-s); padding: 6px 12px; border: 1px solid var(--rule-strong); border-radius: 2px; color: var(--ink-2) }
+.tag.warn { border-color: var(--warn); color: var(--warn) }
+.tag.ok { border-color: var(--rule-strong) }
+.wd-hint { grid-column: 1 / -1; font-size: var(--t-s); line-height: 1.5 }
+
+.how .price { border-top: 1px solid var(--rule); padding-top: 16px; max-width: 78ch; line-height: 1.6 }
+
+/* Issued, unpaid receipts: dense rows, amount aligned right. */
+.pending { list-style: none; padding: 0; margin: 0 0 64px; border-top: 1px solid var(--rule-strong) }
+.pending li { display: grid; grid-template-columns: 8ch 1fr auto; gap: 8px 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--rule); font-size: var(--t-s) }
+.pending li > span:first-child { color: var(--ink-3) }
+.pending li > span:nth-child(3) { text-align: right; font-size: var(--t-m); letter-spacing: -.02em }
+.pending li > span:nth-child(3) small { font-size: var(--t-xs); color: var(--ink-3); letter-spacing: 0 }
+.pending .acts { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap }
+@media (min-width: 760px) {
+  .pending li { grid-template-columns: 8ch 1fr auto auto }
+  .pending .acts { grid-column: auto }
+}
+.ttl { margin-top: 8px; color: var(--ink-3) }
+.pending a.btn { text-decoration: none }

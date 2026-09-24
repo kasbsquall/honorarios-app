@@ -1,0 +1,53 @@
+name: CI
+
+# The sample panel showed zeros for a whole day because a constant was left pointing
+# at a dead contract after a redeploy, and nobody opened it. That is why check-demo
+# runs here as well as by hand.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add wasm32v1-none
+      - run: cargo test
+        working-directory: contracts/split
+      - run: cargo build --target wasm32v1-none --release
+        working-directory: contracts/split
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
+
+  sample-panel:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # Fails if the sample panel's account has nothing in the deployed contract.
+      - run: npm run check:demo
