@@ -11,3 +11,6 @@ web/.env
 node_modules/
 __pycache__/
 *.pyc
+
+# Video workspace: renders, recordings and audio stay local
+video/

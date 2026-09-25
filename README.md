@@ -6,7 +6,7 @@ Honorarios is for freelancers in Peru who are paid by clients abroad. Peru taxes
 
 Honorarios sets aside that 8% at the moment each payment arrives. The freelancer issues a receipt in the app and sends the client a payment link. When the client pays in USDC on Stellar, a smart contract splits the payment in the same transaction: 92% goes to the freelancer's wallet and 8% stays in a reserve in the contract that only the freelancer can withdraw. When the prepayment is due, the money is there.
 
-**App:** https://honorarios-stellar.vercel.app · **Sample dashboard, no wallet or install needed:** https://honorarios-stellar.vercel.app/?demo · **Network:** Stellar testnet
+**Video (2:47):** https://youtu.be/1-1JU7rlbZ0 · **App:** https://honorarios-stellar.vercel.app · **Sample dashboard, no wallet or install needed:** https://honorarios-stellar.vercel.app/?demo · **Network:** Stellar testnet
 
 The sample dashboard reads a test account live from the chain. As of September 24 it had received 1,420 USDC this month (S/ 5,325 at the sample exchange rate of 3.75). The dashboard shows the prepayment that amount triggers, S/ 426, the reserve the account has to cover it, and a pending receipt you can open and pay. The figures change if someone pays that receipt.
 
