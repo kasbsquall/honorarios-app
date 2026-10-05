@@ -14,6 +14,10 @@ The sample dashboard reads a test account live from the chain. As of September 2
 
 An example: a designer in Arequipa bills a Madrid agency US$ 1,500 a month. At an exchange rate of 3.75 that is about S/ 5,625 (S/ is the Peruvian sol), above the monthly threshold of S/ 4,010, so that month she has to prepay SUNAT 8% of what she was paid, S/ 450. Nobody withholds it, because her client is abroad, and she has to make the payment herself (article 86 of the TUO de la LIR, the consolidated text of Peru's income tax law; the threshold is the one in article 3.a of [R.S. 000390-2025/SUNAT](https://www.sunat.gob.pe/legislacion/superin/2025/000390-2025.pdf), a SUNAT resolution, with a copy in `evidence/`). What usually happens is that by the due date that money is already spent, because it arrived mixed in with the rest of the payment.
 
+### Why the builder knows this gap
+
+Honorarios is built by a Peruvian freelancer paid in dollars. One of his clients has a Peruvian branch, so when he issues it a fee receipt, that branch withholds the 8% and pays it to SUNAT on his behalf. A client abroad has no such obligation, and that is the gap Honorarios fills: it sets the 8% aside at the moment of payment, the way a Peruvian client would. His foreign income today arrives by bank transfer in dollars or through platforms like Payoneer, never in USDC, which is why the on-ramp is the first open item below.
+
 ## The solution
 
 The freelancer issues a receipt in the app and sends the link to the client. When the client pays, a contract on Stellar splits the money on the spot: 92% reaches the freelancer's wallet and 8% stays reserved in their name inside the contract, ready for the prepayment.
