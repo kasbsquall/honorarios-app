@@ -1,13 +1,17 @@
 #![no_std]
-//! Honorarios: splits every payment a Peruvian freelancer receives into net income and a
-//! reserve for the monthly fourth-category income-tax prepayment (8%, see docs).
+//! Honorarios: splits every payment a freelancer receives into net income and a tax reserve
+//! that only the freelancer can withdraw. Each freelancer sets the reserve rate and the time
+//! zone of their tax month. Peru (8% fourth-category prepayment, months in Lima time) is the
+//! first verified preset; the contract itself encodes no country's law.
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env,
-    String,
+    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env, String,
 };
 
-/// 8% in basis points. Rate of the fourth-category income-tax prepayment.
-pub const TAX_BPS: i128 = 800;
+/// Cap on the reserve rate a freelancer can choose: 50%.
+pub const MAX_TAX_BPS: u32 = 5_000;
+/// UTC offsets that exist in practice, in minutes (UTC-12:00 to UTC+14:00).
+pub const MIN_UTC_OFFSET_MIN: i32 = -720;
+pub const MAX_UTC_OFFSET_MIN: i32 = 840;
 const BPS_DENOMINATOR: i128 = 10_000;
 /// Cap on the service fee: 1%. The contract cannot charge more than this, and the
 /// actual value is fixed at deployment. This deployment uses 0.
@@ -32,6 +36,17 @@ enum DataKey {
     MonthGross(Address, u32),
     /// Fee receipt issued by the freelancer, keyed by its number.
     Receipt(Address, String),
+    /// Reserve rate and tax-month time zone chosen by the freelancer.
+    Profile(Address),
+}
+
+/// What the freelancer chose: the share of each payment that goes to the reserve, and the
+/// time zone in which their tax month closes.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Profile {
+    pub tax_bps: u32,
+    pub utc_offset_min: i32,
 }
 
 /// Fee receipt recorded on chain. The freelancer issues it with their signature and the
@@ -42,20 +57,23 @@ pub struct Receipt {
     pub gross: i128,
     pub concept: String,
     pub paid: bool,
+    /// Rate and time zone copied from the profile when the receipt was issued. A later
+    /// profile change never alters a receipt the client has already seen.
+    pub tax_bps: u32,
+    pub utc_offset_min: i32,
 }
 
-/// Peru time zone: the tax month closes at midnight in Lima, not in UTC.
-const PERU_UTC_OFFSET: u64 = 5 * 3_600;
-/// Maximum amount per payment. Leaves ample room over any real fee and keeps the 8%
+/// Maximum amount per payment. Leaves ample room over any real fee and keeps the rate
 /// multiplication from overflowing i128.
 pub const MAX_GROSS: i128 = i128::MAX / BPS_DENOMINATOR;
 
-/// Tax period of the current ledger: year * 12 + (month - 1), in Peru time.
-/// SUNAT's monthly threshold is measured on what was received in the month, so the
-/// running total lives in the contract and does not depend on how many events the RPC keeps.
-pub fn period_of(timestamp: u64) -> u32 {
+/// Tax period of a timestamp: year * 12 + (month - 1), in the freelancer's time zone.
+/// Monthly thresholds (SUNAT's, for Peru) are measured on what was received in the month, so
+/// the running total lives in the contract and does not depend on how many events the RPC keeps.
+pub fn period_of(timestamp: u64, utc_offset_min: i32) -> u32 {
+    let local = (timestamp as i64 + utc_offset_min as i64 * 60).max(0);
     // Howard Hinnant's civil_from_days algorithm, with the era shifted to 0000-03-01.
-    let z = (timestamp.saturating_sub(PERU_UTC_OFFSET) / 86_400) as i64 + 719_468;
+    let z = local / 86_400 + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);
     let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
@@ -86,11 +104,21 @@ pub enum Error {
     AlreadyPaid = 8,
     ConceptTooLong = 9,
     EmptyReceiptRef = 10,
+    /// The reserve rate exceeds MAX_TAX_BPS.
+    TaxRateTooHigh = 11,
+    /// The UTC offset is outside -12:00 to +14:00.
+    InvalidUtcOffset = 12,
+    /// The freelancer has not chosen a rate and time zone yet.
+    NoProfile = 13,
 }
 
 fn keep_alive(env: &Env, key: &DataKey) {
-    env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
-    env.storage().persistent().extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+    env.storage()
+        .persistent()
+        .extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
 #[contractevent]
@@ -104,8 +132,18 @@ pub struct Paid {
     /// Service fee charged on this payment. Zero until it is enabled.
     pub fee: i128,
     pub receipt_ref: String,
-    /// Tax period of the payment (year * 12 + month - 1).
+    /// Tax period of the payment (year * 12 + month - 1), in the freelancer's time zone.
     pub period: u32,
+    /// Reserve rate applied, in basis points.
+    pub tax_bps: u32,
+}
+
+#[contractevent]
+pub struct ProfileSet {
+    #[topic]
+    pub freelancer: Address,
+    pub tax_bps: u32,
+    pub utc_offset_min: i32,
 }
 
 #[contractevent]
@@ -133,12 +171,19 @@ impl Honorarios {
     /// `token` is the SAC contract of the USDC used for payments. `fee_bps` is the
     /// service fee, deducted from the gross and sent to `fee_to`. It is fixed at
     /// deployment: nobody can raise it later.
-    pub fn __constructor(env: Env, token: Address, fee_bps: i128, fee_to: Address) -> Result<(), Error> {
+    pub fn __constructor(
+        env: Env,
+        token: Address,
+        fee_bps: i128,
+        fee_to: Address,
+    ) -> Result<(), Error> {
         if fee_bps < 0 || fee_bps > MAX_FEE_BPS {
             return Err(Error::FeeTooHigh);
         }
         env.storage().instance().set(&DataKey::Token, &token);
-        env.storage().instance().set(&DataKey::Fee, &(fee_bps, fee_to));
+        env.storage()
+            .instance()
+            .set(&DataKey::Fee, &(fee_bps, fee_to));
         Ok(())
     }
 
@@ -149,6 +194,48 @@ impl Honorarios {
 
     pub fn token(env: Env) -> Address {
         env.storage().instance().get(&DataKey::Token).unwrap()
+    }
+
+    /// The freelancer chooses the reserve rate and the time zone of their tax month. It
+    /// applies to receipts issued from now on; receipts already issued keep their own.
+    pub fn set_profile(
+        env: Env,
+        freelancer: Address,
+        tax_bps: u32,
+        utc_offset_min: i32,
+    ) -> Result<(), Error> {
+        freelancer.require_auth();
+        if freelancer == env.current_contract_address() {
+            return Err(Error::InvalidParty);
+        }
+        if tax_bps > MAX_TAX_BPS {
+            return Err(Error::TaxRateTooHigh);
+        }
+        if !(MIN_UTC_OFFSET_MIN..=MAX_UTC_OFFSET_MIN).contains(&utc_offset_min) {
+            return Err(Error::InvalidUtcOffset);
+        }
+        let key = DataKey::Profile(freelancer.clone());
+        env.storage().persistent().set(
+            &key,
+            &Profile {
+                tax_bps,
+                utc_offset_min,
+            },
+        );
+        keep_alive(&env, &key);
+        ProfileSet {
+            freelancer,
+            tax_bps,
+            utc_offset_min,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn profile(env: Env, freelancer: Address) -> Option<Profile> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Profile(freelancer))
     }
 
     /// The freelancer issues a fee receipt and signs it. It is the only thing a client can
@@ -176,20 +263,35 @@ impl Honorarios {
         if concept.len() > MAX_CONCEPT_LEN {
             return Err(Error::ConceptTooLong);
         }
+        let profile = Self::profile(env.clone(), freelancer.clone()).ok_or(Error::NoProfile)?;
         let key = DataKey::Receipt(freelancer.clone(), receipt_ref.clone());
         if env.storage().persistent().has(&key) {
             return Err(Error::ReceiptExists);
         }
-        let receipt = Receipt { gross, concept: concept.clone(), paid: false };
+        let receipt = Receipt {
+            gross,
+            concept: concept.clone(),
+            paid: false,
+            tax_bps: profile.tax_bps,
+            utc_offset_min: profile.utc_offset_min,
+        };
         env.storage().persistent().set(&key, &receipt);
         keep_alive(&env, &key);
 
-        Issued { freelancer, receipt_ref, gross, concept }.publish(&env);
+        Issued {
+            freelancer,
+            receipt_ref,
+            gross,
+            concept,
+        }
+        .publish(&env);
         Ok(())
     }
 
     pub fn receipt(env: Env, freelancer: Address, receipt_ref: String) -> Option<Receipt> {
-        env.storage().persistent().get(&DataKey::Receipt(freelancer, receipt_ref))
+        env.storage()
+            .persistent()
+            .get(&DataKey::Receipt(freelancer, receipt_ref))
     }
 
     /// The client pays an issued receipt. The amount comes from the receipt, not from the
@@ -213,20 +315,24 @@ impl Honorarios {
         if receipt.paid {
             return Err(Error::AlreadyPaid);
         }
-        let gross = receipt.gross;
-        env.storage()
-            .persistent()
-            .set(&receipt_key, &Receipt { paid: true, ..receipt });
+        let (gross, tax_bps, offset) = (receipt.gross, receipt.tax_bps, receipt.utc_offset_min);
+        env.storage().persistent().set(
+            &receipt_key,
+            &Receipt {
+                paid: true,
+                ..receipt
+            },
+        );
         keep_alive(&env, &receipt_key);
 
-        let period = period_of(env.ledger().timestamp());
+        let period = period_of(env.ledger().timestamp(), offset);
         let month_key = DataKey::MonthGross(freelancer.clone(), period);
         let month: i128 = env.storage().persistent().get(&month_key).unwrap_or(0);
         env.storage().persistent().set(&month_key, &(month + gross));
         keep_alive(&env, &month_key);
 
         // Round up: when a cent is in doubt, it stays in the reserve.
-        let tax = (gross * TAX_BPS + BPS_DENOMINATOR - 1) / BPS_DENOMINATOR;
+        let tax = (gross * tax_bps as i128 + BPS_DENOMINATOR - 1) / BPS_DENOMINATOR;
         // The fee is truncated down: the doubt never falls on the service's side.
         let (fee_bps, fee_to) = Self::fee(env.clone());
         let fee = gross * fee_bps / BPS_DENOMINATOR;
@@ -245,7 +351,18 @@ impl Honorarios {
             keep_alive(&env, &key);
         }
 
-        Paid { freelancer, payer, gross, net, tax, fee, receipt_ref, period }.publish(&env);
+        Paid {
+            freelancer,
+            payer,
+            gross,
+            net,
+            tax,
+            fee,
+            receipt_ref,
+            period,
+            tax_bps,
+        }
+        .publish(&env);
         Ok(net)
     }
 
@@ -262,13 +379,15 @@ impl Honorarios {
         keep_alive(&env, &DataKey::TaxReserve(freelancer));
     }
 
-    /// Tax period of the current ledger, to query the month's running total.
-    pub fn current_period(env: Env) -> u32 {
-        period_of(env.ledger().timestamp())
+    /// Current tax period in the freelancer's time zone, to query the month's running total.
+    /// Without a profile it is measured in UTC.
+    pub fn current_period(env: Env, freelancer: Address) -> u32 {
+        let offset = Self::profile(env.clone(), freelancer).map_or(0, |p| p.utc_offset_min);
+        period_of(env.ledger().timestamp(), offset)
     }
 
-    /// Gross collected by the freelancer in that period. This is the number compared
-    /// against SUNAT's monthly threshold.
+    /// Gross collected by the freelancer in that period. For Peru, this is the number
+    /// compared against SUNAT's monthly threshold.
     pub fn month_gross(env: Env, freelancer: Address, period: u32) -> i128 {
         env.storage()
             .persistent()
@@ -301,7 +420,12 @@ impl Honorarios {
             &amount,
         );
 
-        TaxWithdrawn { freelancer, to, amount }.publish(&env);
+        TaxWithdrawn {
+            freelancer,
+            to,
+            amount,
+        }
+        .publish(&env);
         Ok(())
     }
 }

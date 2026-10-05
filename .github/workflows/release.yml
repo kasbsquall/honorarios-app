@@ -1,0 +1,25 @@
+name: Verified contract release
+
+# A tag v* builds the contract in GitHub's runner, publishes the wasm in a release and attests it.
+# The deployed contract is that exact wasm, so Stellar Lab and Stellar Expert can show it as a
+# verified build (SEP-55).
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
+
+jobs:
+  release-split:
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: "Honorarios split contract"
+      relative_path: '["contracts/split"]'
+      package: "split"
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,8 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Address as _, token::StellarAssetClient, Address, Env, IntoVal, String};
+use soroban_sdk::{
+    testutils::Address as _, token::StellarAssetClient, Address, Env, IntoVal, String,
+};
 
 struct Setup {
     env: Env,
@@ -9,6 +11,18 @@ struct Setup {
     contract: HonorariosClient<'static>,
     payer: Address,
     freelancer: Address,
+}
+
+/// Peru preset: 8% reserve, tax month in Lima time.
+const PERU_BPS: u32 = 800;
+const LIMA: i32 = -300;
+
+impl Setup {
+    fn with_peru_profile(self) -> Self {
+        self.contract
+            .set_profile(&self.freelancer, &PERU_BPS, &LIMA);
+        self
+    }
 }
 
 fn setup() -> Setup {
@@ -29,6 +43,7 @@ fn setup() -> Setup {
         fee_to,
         env,
     }
+    .with_peru_profile()
 }
 
 /// Same setup, with the service fee turned on.
@@ -49,12 +64,18 @@ fn setup_with_fee(fee_bps: i128) -> Setup {
         fee_to,
         env,
     }
+    .with_peru_profile()
 }
 
 /// The freelancer issues the receipt and the client pays it: the only path for a payment.
 fn charge(s: &Setup, freelancer: &Address, gross: i128, receipt_ref: &str) -> i128 {
     let r = String::from_str(&s.env, receipt_ref);
-    s.contract.issue(freelancer, &r, &gross, &String::from_str(&s.env, "Services"));
+    s.contract.issue(
+        freelancer,
+        &r,
+        &gross,
+        &String::from_str(&s.env, "Services"),
+    );
     s.contract.pay(&s.payer, freelancer, &r)
 }
 
@@ -116,7 +137,13 @@ fn cannot_withdraw_more_than_reserve() {
 fn rejects_payer_as_freelancer() {
     let s = setup();
     let receipt = String::from_str(&s.env, "E001-16");
-    s.contract.issue(&s.payer, &receipt, &100_0000000, &String::from_str(&s.env, "Services"));
+    s.contract.set_profile(&s.payer, &PERU_BPS, &LIMA);
+    s.contract.issue(
+        &s.payer,
+        &receipt,
+        &100_0000000,
+        &String::from_str(&s.env, "Services"),
+    );
 
     let result = s.contract.try_pay(&s.payer, &s.payer, &receipt);
 
@@ -129,7 +156,9 @@ fn rejects_contract_as_freelancer() {
     let receipt = String::from_str(&s.env, "E001-17");
     let concept = String::from_str(&s.env, "Services");
 
-    let result = s.contract.try_issue(&s.contract.address, &receipt, &100_0000000, &concept);
+    let result = s
+        .contract
+        .try_issue(&s.contract.address, &receipt, &100_0000000, &concept);
 
     assert_eq!(result, Err(Ok(Error::InvalidParty)));
 }
@@ -141,7 +170,9 @@ fn rejects_long_receipt_ref() {
 
     let concept = String::from_str(&s.env, "Services");
 
-    let result = s.contract.try_issue(&s.freelancer, &long, &100_0000000, &concept);
+    let result = s
+        .contract
+        .try_issue(&s.freelancer, &long, &100_0000000, &concept);
 
     assert_eq!(result, Err(Ok(Error::ReceiptRefTooLong)));
 }
@@ -153,7 +184,10 @@ fn pay_extends_reserve_ttl() {
     charge(&s, &s.freelancer, 100_0000000, "E001-18");
 
     let ttl = s.env.as_contract(&s.contract.address, || {
-        s.env.storage().persistent().get_ttl(&DataKey::TaxReserve(s.freelancer.clone()))
+        s.env
+            .storage()
+            .persistent()
+            .get_ttl(&DataKey::TaxReserve(s.freelancer.clone()))
     });
 
     assert!(ttl >= TTL_THRESHOLD);
@@ -180,7 +214,8 @@ fn setup_enforcing_auth() -> Setup {
         payer,
         fee_to,
         env,
-    };
+    }
+    .with_peru_profile();
     charge(&s, &s.freelancer, 500_0000000, "E001-1");
     // An issued, unpaid receipt, to prove that paying it requires the client's signature.
     s.contract.issue(
@@ -198,7 +233,8 @@ fn setup_enforcing_auth() -> Setup {
 fn withdraw_requires_the_freelancer_signature() {
     let s = setup_enforcing_auth();
     // With no signature granted, the freelancer's require_auth stops the call.
-    s.contract.withdraw_tax(&s.freelancer, &s.payer, &10_0000000);
+    s.contract
+        .withdraw_tax(&s.freelancer, &s.payer, &10_0000000);
 }
 
 #[test]
@@ -216,20 +252,22 @@ fn a_third_party_cannot_withdraw_someone_elses_reserve() {
             sub_invokes: &[],
         },
     }]);
-    s.contract.withdraw_tax(&s.freelancer, &intruder, &10_0000000);
+    s.contract
+        .withdraw_tax(&s.freelancer, &intruder, &10_0000000);
 }
 
 #[test]
 #[should_panic(expected = "InvalidAction")]
 fn pay_requires_the_payer_signature() {
     let s = setup_enforcing_auth();
-    s.contract.pay(&s.payer, &s.freelancer, &String::from_str(&s.env, "E001-2"));
+    s.contract
+        .pay(&s.payer, &s.freelancer, &String::from_str(&s.env, "E001-2"));
 }
 
 #[test]
 fn month_gross_accumulates_and_separates_periods() {
     let s = setup();
-    let period = s.contract.current_period();
+    let period = s.contract.current_period(&s.freelancer);
     charge(&s, &s.freelancer, 300_0000000, "E001-3");
     charge(&s, &s.freelancer, 200_0000000, "E001-4");
 
@@ -240,27 +278,29 @@ fn month_gross_accumulates_and_separates_periods() {
 #[test]
 fn period_of_maps_known_dates() {
     // 2026-09-19T00:00:00Z is the night of September 18 in Lima: September.
-    assert_eq!(period_of(1_789_776_000), 2026 * 12 + 8);
+    assert_eq!(period_of(1_789_776_000, LIMA), 2026 * 12 + 8);
     // 2026-10-01T05:00:00Z is midnight on October 1 in Lima: October.
-    assert_eq!(period_of(1_790_830_800), 2026 * 12 + 9);
+    assert_eq!(period_of(1_790_830_800, LIMA), 2026 * 12 + 9);
 }
 
 #[test]
 fn the_month_closes_at_midnight_in_lima() {
     // 2026-10-01T00:00:00Z is 19:00 on September 30 in Lima. That payment
     // belongs to September, which is the month SUNAT measures.
-    assert_eq!(period_of(1_790_812_800), 2026 * 12 + 8);
+    assert_eq!(period_of(1_790_812_800, LIMA), 2026 * 12 + 8);
     // Five hours later it is already October in Lima.
-    assert_eq!(period_of(1_790_812_800 + 5 * 3_600), 2026 * 12 + 9);
+    assert_eq!(period_of(1_790_812_800 + 5 * 3_600, LIMA), 2026 * 12 + 9);
 }
 
 #[test]
 fn the_contract_never_owes_more_than_it_holds() {
     let s = setup();
     let other = Address::generate(&s.env);
+    s.contract.set_profile(&other, &PERU_BPS, &LIMA);
     charge(&s, &s.freelancer, 500_0000000, "E001-8");
     charge(&s, &other, 250_0000000, "E001-9");
-    s.contract.withdraw_tax(&s.freelancer, &s.payer, &10_0000000);
+    s.contract
+        .withdraw_tax(&s.freelancer, &s.payer, &10_0000000);
 
     // Custody invariant: everything reserved in everyone's name fits in the contract's balance.
     let reserved = s.contract.tax_reserve(&s.freelancer) + s.contract.tax_reserve(&other);
@@ -300,7 +340,10 @@ fn extend_reserve_renews_the_ttl_without_moving_funds() {
     s.contract.extend_reserve(&s.freelancer);
 
     let ttl = s.env.as_contract(&s.contract.address, || {
-        s.env.storage().persistent().get_ttl(&DataKey::TaxReserve(s.freelancer.clone()))
+        s.env
+            .storage()
+            .persistent()
+            .get_ttl(&DataKey::TaxReserve(s.freelancer.clone()))
     });
     assert!(ttl >= TTL_THRESHOLD);
     assert_eq!(s.contract.tax_reserve(&s.freelancer), before);
@@ -337,7 +380,11 @@ fn the_tax_reserve_is_never_touched_by_the_fee() {
 
     // Even with the fee at its cap, the reserve is still 8% of the gross.
     assert_eq!(s.contract.tax_reserve(&s.freelancer), 40_0000000);
-    assert_eq!(s.contract.month_gross(&s.freelancer, &s.contract.current_period()), 500_0000000);
+    assert_eq!(
+        s.contract
+            .month_gross(&s.freelancer, &s.contract.current_period(&s.freelancer)),
+        500_0000000
+    );
 }
 
 #[test]
@@ -359,7 +406,12 @@ fn rejects_a_fee_above_the_cap() {
 fn pay_reads_the_amount_from_the_receipt() {
     let s = setup();
     let r = String::from_str(&s.env, "E001-20");
-    s.contract.issue(&s.freelancer, &r, &250_0000000, &String::from_str(&s.env, "Logo"));
+    s.contract.issue(
+        &s.freelancer,
+        &r,
+        &250_0000000,
+        &String::from_str(&s.env, "Logo"),
+    );
 
     // The client does not say how much to pay: the contract charges what the receipt says.
     s.contract.pay(&s.payer, &s.freelancer, &r);
@@ -372,10 +424,18 @@ fn pay_reads_the_amount_from_the_receipt() {
 fn rejects_paying_a_receipt_nobody_issued() {
     let s = setup();
 
-    let r = s.contract.try_pay(&s.payer, &s.freelancer, &String::from_str(&s.env, "E001-21"));
+    let r = s.contract.try_pay(
+        &s.payer,
+        &s.freelancer,
+        &String::from_str(&s.env, "E001-21"),
+    );
 
     assert_eq!(r, Err(Ok(Error::UnknownReceipt)));
-    assert_eq!(s.contract.month_gross(&s.freelancer, &s.contract.current_period()), 0);
+    assert_eq!(
+        s.contract
+            .month_gross(&s.freelancer, &s.contract.current_period(&s.freelancer)),
+        0
+    );
 }
 
 #[test]
@@ -383,7 +443,11 @@ fn a_receipt_cannot_be_paid_twice() {
     let s = setup();
     charge(&s, &s.freelancer, 100_0000000, "E001-22");
 
-    let r = s.contract.try_pay(&s.payer, &s.freelancer, &String::from_str(&s.env, "E001-22"));
+    let r = s.contract.try_pay(
+        &s.payer,
+        &s.freelancer,
+        &String::from_str(&s.env, "E001-22"),
+    );
 
     assert_eq!(r, Err(Ok(Error::AlreadyPaid)));
     assert_eq!(s.usdc.balance(&s.freelancer), 92_0000000);
@@ -400,14 +464,22 @@ fn rejects_issuing_the_same_receipt_twice() {
     let again = s.contract.try_issue(&s.freelancer, &r, &900_0000000, &c);
 
     assert_eq!(again, Err(Ok(Error::ReceiptExists)));
-    assert_eq!(s.contract.receipt(&s.freelancer, &r).unwrap().gross, 100_0000000);
+    assert_eq!(
+        s.contract.receipt(&s.freelancer, &r).unwrap().gross,
+        100_0000000
+    );
 }
 
 #[test]
 fn the_receipt_records_that_it_was_paid() {
     let s = setup();
     let r = String::from_str(&s.env, "E001-24");
-    s.contract.issue(&s.freelancer, &r, &100_0000000, &String::from_str(&s.env, "Web"));
+    s.contract.issue(
+        &s.freelancer,
+        &r,
+        &100_0000000,
+        &String::from_str(&s.env, "Web"),
+    );
     assert!(!s.contract.receipt(&s.freelancer, &r).unwrap().paid);
 
     s.contract.pay(&s.payer, &s.freelancer, &r);
@@ -428,8 +500,12 @@ fn rejects_empty_receipt_ref_and_long_concept() {
     );
     let concept = String::from_str(&s.env, "Services");
 
-    let a = s.contract.try_issue(&s.freelancer, &empty, &100_0000000, &concept);
-    let b = s.contract.try_issue(&s.freelancer, &ok_ref, &100_0000000, &long);
+    let a = s
+        .contract
+        .try_issue(&s.freelancer, &empty, &100_0000000, &concept);
+    let b = s
+        .contract
+        .try_issue(&s.freelancer, &ok_ref, &100_0000000, &long);
 
     assert_eq!(a, Err(Ok(Error::EmptyReceiptRef)));
     assert_eq!(b, Err(Ok(Error::ConceptTooLong)));
@@ -466,4 +542,115 @@ fn a_stranger_cannot_issue_receipts_in_someone_elses_name() {
         },
     }]);
     s.contract.issue(&s.freelancer, &r, &100_0000000, &c);
+}
+
+// ---------------------------------------------------------------- v2: any rate, any time zone
+
+#[test]
+fn issue_requires_a_profile() {
+    let s = setup();
+    let stranger = Address::generate(&s.env);
+    let r = String::from_str(&s.env, "A-1");
+    let res = s
+        .contract
+        .try_issue(&stranger, &r, &100_0000000, &String::from_str(&s.env, "x"));
+    assert_eq!(res, Err(Ok(Error::NoProfile)));
+}
+
+#[test]
+fn a_freelancer_elsewhere_uses_their_own_rate() {
+    // 25%, an illustrative rate chosen by the freelancer, not a country's rule.
+    let s = setup();
+    let other = Address::generate(&s.env);
+    s.contract.set_profile(&other, &2_500, &60);
+    let net = charge(&s, &other, 400_0000000, "INV-7");
+    assert_eq!(net, 300_0000000);
+    assert_eq!(s.contract.tax_reserve(&other), 100_0000000);
+}
+
+#[test]
+fn a_zero_rate_sends_everything_to_the_freelancer() {
+    let s = setup();
+    let other = Address::generate(&s.env);
+    s.contract.set_profile(&other, &0, &0);
+    assert_eq!(charge(&s, &other, 100_0000000, "Z-1"), 100_0000000);
+    assert_eq!(s.contract.tax_reserve(&other), 0);
+    assert_eq!(s.usdc.balance(&s.contract.address), 0);
+}
+
+#[test]
+fn rejects_a_rate_above_the_cap_and_impossible_offsets() {
+    let s = setup();
+    let f = &s.freelancer;
+    assert_eq!(
+        s.contract.try_set_profile(f, &(MAX_TAX_BPS + 1), &0),
+        Err(Ok(Error::TaxRateTooHigh))
+    );
+    assert_eq!(
+        s.contract.try_set_profile(f, &800, &-721),
+        Err(Ok(Error::InvalidUtcOffset))
+    );
+    assert_eq!(
+        s.contract.try_set_profile(f, &800, &841),
+        Err(Ok(Error::InvalidUtcOffset))
+    );
+    assert!(s.contract.try_set_profile(f, &MAX_TAX_BPS, &840).is_ok());
+}
+
+#[test]
+fn changing_the_profile_never_alters_an_issued_receipt() {
+    let s = setup();
+    let r = String::from_str(&s.env, "E001-90");
+    s.contract.issue(
+        &s.freelancer,
+        &r,
+        &100_0000000,
+        &String::from_str(&s.env, "Web"),
+    );
+    s.contract.set_profile(&s.freelancer, &3_000, &0);
+    // The client pays what they saw: 8%, not 30%.
+    assert_eq!(s.contract.pay(&s.payer, &s.freelancer, &r), 92_0000000);
+    assert_eq!(s.contract.receipt(&s.freelancer, &r).unwrap().tax_bps, 800);
+}
+
+#[test]
+fn each_freelancer_closes_the_month_in_their_own_time_zone() {
+    // 2026-10-01 03:00 UTC: still September in Lima, already October in Madrid (UTC+2).
+    let t = 1_790_830_800 - 2 * 3_600;
+    assert_eq!(period_of(t, LIMA), 2026 * 12 + 8);
+    assert_eq!(period_of(t, 120), 2026 * 12 + 9);
+}
+
+#[test]
+#[should_panic(expected = "InvalidAction")]
+fn set_profile_requires_the_freelancer_signature() {
+    let s = setup_enforcing_auth();
+    s.contract.set_profile(&s.freelancer, &5_000, &0);
+}
+
+#[test]
+fn the_split_always_adds_up_for_any_rate_and_amount() {
+    // Deterministic sweep: every gross and rate combination conserves the payment and keeps
+    // the rounding doubt on the reserve's side.
+    let s = setup();
+    StellarAssetClient::new(&s.env, &s.usdc.address).mint(&s.payer, &100_000_0000000);
+    let grosses: [i128; 7] = [1, 7, 99, 1_0000000, 123_4567891, 999_9999999, 3];
+    let rates: [u32; 6] = [0, 1, 800, 1_234, 4_999, MAX_TAX_BPS];
+    let mut n = 0;
+    for rate in rates {
+        let f = Address::generate(&s.env);
+        s.contract.set_profile(&f, &rate, &0);
+        for g in grosses {
+            n += 1;
+            let reserve_before = s.contract.tax_reserve(&f);
+            let paid_before = s.usdc.balance(&f);
+            let label = [b'S', b'0' + (n / 10) as u8, b'0' + (n % 10) as u8];
+            let net = charge(&s, &f, g, core::str::from_utf8(&label).unwrap());
+            let tax = s.contract.tax_reserve(&f) - reserve_before;
+            assert_eq!(net + tax, g);
+            assert_eq!(s.usdc.balance(&f) - paid_before, net);
+            assert!(tax * 10_000 >= g * rate as i128);
+            assert!((tax - 1) * 10_000 < g * rate as i128 || tax == 0);
+        }
+    }
 }
