@@ -19,7 +19,7 @@ jobs:
     with:
       release_name: ${{ github.ref_name }}
       release_description: "Honorarios split contract"
-      relative_path: '["contracts/split"]'
+      relative_path: "contracts/split"
       package: "split"
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
