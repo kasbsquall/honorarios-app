@@ -16,6 +16,8 @@ Peru is the first fully supported country, with its 8% rate, its SUNAT threshold
 
 This is the only place in this README where the contract ID appears. Every other section links back here.
 
+**Also on mainnet:** the same verified wasm runs as [`CBXE3Z56…CLQ4`](https://stellar.expert/explorer/public/contract/CBXE3Z563JXVWEQ6LA5OV2JBRFVDIWNGXDQC77AUWMIDWU25CDW4CLQ4). One real payment of 2 USDC was split 1.84 / 0.16 in a single transaction: [`929c4cbc…7d98`](https://stellar.expert/explorer/public/tx/929c4cbc3b0101e095162aa7d5d21b633531e14a1482e040a73d1613dd127d98). The builder paid himself; it proves the contract on mainnet, not traction. Details in [`evidence/2026-10-06-mainnet/source.md`](evidence/2026-10-06-mainnet/source.md).
+
 1. A freelancer saves the Peru preset on chain (800 basis points, UTC-5): [`3290d413…5e63`](https://stellar.expert/explorer/testnet/tx/3290d413d201b3a337e5f6fbd065cc53ed64b91514fa6ba45ea0e526429c5e63)
 2. A client pays receipt E001-1 for 500 USDC: 460 to the freelancer and 40 to the reserve, in one transaction: [`c5f571e3…85d0`](https://stellar.expert/explorer/testnet/tx/c5f571e3da225f3c1e768c23699db7ac2263b6103804947eaf4ce969c4d485d0)
 3. The same client tries to pay E001-1 a second time and the contract refuses with `Error(Contract, #8)`, already paid: [`95551127…2f85`](https://stellar.expert/explorer/testnet/tx/9555112704d3c5a6f0a4d85958c7e81aca5a014d5b6326b1c79cb6b7cf042f85)

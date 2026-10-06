@@ -24,7 +24,7 @@ from pathlib import Path
 
 from stellar_sdk import Asset, Keypair, Network, Server, SorobanServer, TransactionBuilder, scval, xdr
 
-RPC = "https://mainnet.sorobanrpc.com"
+RPC = "https://rpc.lightsail.network"
 HORIZON = "https://horizon.stellar.org"
 PASSPHRASE = Network.PUBLIC_NETWORK_PASSPHRASE
 EXPLORER = "https://stellar.expert/explorer/public/tx/"
