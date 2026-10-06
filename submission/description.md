@@ -2,6 +2,8 @@ Honorarios sets aside your taxes the moment a foreign client pays you.
 
 Try it in one minute, no wallet needed: https://honorarios-stellar.vercel.app/?demo
 
+Video (1:58): https://youtu.be/Mtt03zllCic
+
 The problem: when a client abroad pays a freelancer, the full amount arrives. Nobody withholds anything, and the tax or prepayment is due weeks or months later, by which time the money is often spent. At least seven tax systems make self-employed people prepay their own tax (US estimated tax, UK payments on account, India advance tax, Brazil carnê-leão, Mexico, the Philippines, Peru). The World Bank counts 154 to 435 million online gig workers. Products that set tax aside automatically exist, but they depend on US banks and US tax rules.
 
 The solution: every payment goes through a Soroban contract. The freelancer chooses the share to reserve (up to 50%) and the time zone their tax month closes in. The client pays in USDC from any Stellar wallet, or with XLM through a path payment, and the contract splits it in the same transaction: the net to the freelancer, the reserve into a balance only the freelancer can withdraw. Each receipt keeps the rate it was issued with, so a later change never alters what the client saw. There is no admin key, and paying the same receipt twice is rejected by the network.

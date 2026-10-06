@@ -8,7 +8,7 @@ Honorarios sets that money aside at the moment the payment arrives. The freelanc
 
 Peru is the first fully supported country, with its 8% rate, its SUNAT threshold and the tax month closed on Lima time, all cited from the source. For any other country the freelancer picks their own percentage and the app makes no claim about their law.
 
-**Video (2:47, recorded on v1):** https://youtu.be/1-1JU7rlbZ0 · **App:** https://honorarios-stellar.vercel.app · **Sample dashboard, no wallet or install needed:** https://honorarios-stellar.vercel.app/?demo · **Network:** Stellar testnet
+**Video (1:58):** https://youtu.be/Mtt03zllCic · **App:** https://honorarios-stellar.vercel.app · **Sample dashboard, no wallet or install needed:** https://honorarios-stellar.vercel.app/?demo · **Network:** Stellar testnet
 
 ## Verify it in 2 minutes
 
@@ -280,7 +280,7 @@ What we did not find is the combination: a set-aside that happens inside the cro
 - The app does not issue electronic receipts. The receipt recorded by the contract is the app's own, and SUNAT's is copied from the draft into SUNAT Operaciones en Línea. The draft does not include the minimum amount above which a Peruvian agent withholds: we have not verified it.
 - The detail of each payment and the list of pending receipts are rebuilt from RPC events, which testnet keeps for about a week. The monthly figures, the reserve, the profile and the status of each receipt live in the contract and do not expire. After that window the dashboard says so, and the draft for an old payment can no longer be generated.
 - The frontend's tax and split logic has 38 tests and the contract has 39. The rest of the frontend has no automated tests: the files in `web/e2e/` are walkthrough scripts with no assertions.
-- The video was recorded on v1, with the rate fixed at 8%.
+- In the video, the opening voice note is a synthetic voice standing in for the builder, and the film says so on screen. Every product shot is a recording of the live app or a capture of a real transaction.
 - In this deployment, the account that would receive the fee is the test account that deployed the contract. With the fee at zero it never receives anything.
 - The reserve is an organizing aid and does not replace advice from an accountant.
 
