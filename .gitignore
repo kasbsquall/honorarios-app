@@ -14,3 +14,4 @@ __pycache__/
 
 # Video workspace: renders, recordings and audio stay local
 video/
+scripts/*.wasm
