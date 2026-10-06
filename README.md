@@ -89,7 +89,7 @@ And this is how a rejected attack looks in Stellar Expert, the second payment of
 
 ## How your client abroad pays you
 
-Today, on testnet, with a Stellar wallet in their browser (Freighter) and USDC or XLM. If they only have XLM, the app builds a path payment that buys the missing USDC in the same operation ([`9249a792…1836`](https://stellar.expert/explorer/testnet/tx/9249a792970183152c8ad65d86bdbacb2731ce66ad26d74e1e5d2ab34efd1836)). A client who has never used crypto first needs a way to turn their dollars into USDC on Stellar. This app does not solve that piece, and it is on the list of open items.
+Today, on testnet, with a Stellar wallet in their browser (Freighter) and USDC or XLM. If they only have XLM, the app builds a path payment that buys the missing USDC in the same operation ([`9249a792…1836`](https://stellar.expert/explorer/testnet/tx/9249a792970183152c8ad65d86bdbacb2731ce66ad26d74e1e5d2ab34efd1836)). A client who has never used crypto first needs a way to turn their dollars into USDC on Stellar. This app does not solve that piece, and it is on the list of open items. The route we would build next is a fiat on-ramp on the client's side through a Stellar anchor (SEP-24 deposit), the same protocol the reserve already uses to leave through SEP-24 withdrawal. It is not built.
 
 ## From the reserve to the tax authority
 
