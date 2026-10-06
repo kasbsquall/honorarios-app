@@ -1,0 +1,18 @@
+name: Request StellarExpert source validation
+
+# The release run for v2.0.0 sent this request and StellarExpert answered 403. This resends the
+# same payload from a GitHub runner, now that the wasm is deployed on both networks.
+on: workflow_dispatch
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send release info for v2.0.0
+        run: |
+          for net in public testnet; do
+            curl -sS -X POST "https://api.stellar.expert/explorer/$net/contract-validation/match" \
+              -H "Content-Type: application/json" --max-time 15 \
+              -d '{"repository":"https://github.com/kasbsquall/honorarios-app","commitHash":"2252d8e3871e0ee70cf28efb74e1ac9231cc27c1","jobId":"build","runId":"37381448087","contractHash":"3d6e9ff20db5f3f482453d6d421afdb7167234660422313f288ea6c801ed31a3","relativePath":"contracts/split","packageName":"split"}'
+            echo
+          done
