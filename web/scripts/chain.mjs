@@ -23,6 +23,17 @@ export const usdc = (n) => BigInt(Math.round(Number(n) * 1e7));
 export const addr = (a) => nativeToScVal(new Address(a));
 export const str = (s) => nativeToScVal(s, { type: "string" });
 export const i128 = (n) => nativeToScVal(n, { type: "i128" });
+export const u32 = (n) => nativeToScVal(n, { type: "u32" });
+export const i32 = (n) => nativeToScVal(n, { type: "i32" });
+
+/** Storage key of a freelancer's profile, DataKey::Profile(freelancer) in the contract. */
+export function profileKey(owner) {
+  return xdr.LedgerKey.contractData(new xdr.LedgerKeyContractData({
+    contract: new Address(CONTRACT).toScAddress(),
+    key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("Profile"), addr(owner)]),
+    durability: xdr.ContractDataDurability.persistent(),
+  }));
+}
 
 /** Storage key of a receipt, DataKey::Receipt(freelancer, number) in the contract. */
 export function receiptKey(owner, ref) {

@@ -23,15 +23,21 @@ const call = async (fn, ...args) => {
   return scValToNative(sim.result.retval);
 };
 
-const period = await call("current_period");
+const profile = await call("profile", nativeToScVal(new Address(wallet)));
+const period = await call("current_period", nativeToScVal(new Address(wallet)));
 const gross = await call("month_gross", nativeToScVal(new Address(wallet)), nativeToScVal(period, { type: "u32" }));
 const reserve = await call("tax_reserve", nativeToScVal(new Address(wallet)));
 const fmt = (v) => (Number(v) / 1e7).toFixed(2);
 
 console.log(`contract ${contract}`);
 console.log(`wallet   ${wallet}`);
+console.log(`profile ${profile ? `${profile.tax_bps / 100}% · UTC offset ${profile.utc_offset_min} min` : "none"}`);
 console.log(`period ${period}: gross ${fmt(gross)} USDC · reserve ${fmt(reserve)} USDC`);
 
+if (!profile || profile.tax_bps !== 800 || profile.utc_offset_min !== -300) {
+  console.error("\nFAIL: the sample account is not on the Peru preset. The panel will hide the threshold block.");
+  process.exit(1);
+}
 if (gross === 0n && reserve === 0n) {
   console.error("\nFAIL: that wallet has nothing in this contract. The sample panel will show zeros.");
   process.exit(1);

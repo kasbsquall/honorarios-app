@@ -19,16 +19,22 @@ import { getNetworkDetails, isConnected, requestAccess, signTransaction } from "
 export const NETWORK = Networks.TESTNET;
 export const RPC_URL = "https://soroban-testnet.stellar.org";
 export const HORIZON_URL = "https://horizon-testnet.stellar.org";
-export const CONTRACT_ID = "CC6SGVMYAN3NY7PHFACMA4H4BZSOK2Q2NJ7Z64UJY3PTA4A2TJZOEU2H";
+export const CONTRACT_ID = "CCLAMGX6EACGRA3D3FSFARER7V4KZUFY54M52AZ4UDXPVR47GVRE7HM4";
 export const USDC = new Asset("USDC", "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5");
-export const TAX_BPS = 800n;
+/** Peru preset: 8% fourth-category prepayment, tax month closed in Lima time (UTC-5).
+ *  The only country whose rules this app has verified. */
+export const PERU = { taxBps: 800, utcOffsetMin: -300 } as const;
+/** Cap the contract enforces on the reserve rate: 50%. */
+export const MAX_TAX_BPS = 5000;
+export const MIN_UTC_OFFSET_MIN = -720;
+export const MAX_UTC_OFFSET_MIN = 840;
 export const EXPLORER = "https://stellar.expert/explorer/testnet";
 const DECIMALS = 7;
 const PATH_SLIPPAGE = 1.05;
 // A testnet ledger closes about every 5 s: used to turn a TTL in ledgers into a date.
 const LEDGER_SECONDS = 5;
 // Ledger where the contract was deployed: there are no events before it.
-const DEPLOY_LEDGER = 4_853_318;
+const DEPLOY_LEDGER = 5_044_440;
 // The testnet RPC scans at most ~10k ledgers per query.
 const EVENT_SCAN_STEP = 9_000;
 
@@ -63,12 +69,42 @@ export function serviceFee(): Promise<{ bps: bigint; to: string }> {
 }
 
 /** Same split as the contract: reserve rounded up, fee truncated.
- *  feeBps must come from `serviceFee()`, never from a local constant. If the contract
- *  charged a fee the screen did not know about, the client would sign a false breakdown. */
-export function split(gross: bigint, feeBps: bigint = 0n) {
-  const tax = (gross * TAX_BPS + 9_999n) / 10_000n;
+ *  taxBps must come from the receipt (or the profile, before issuing) and feeBps from
+ *  `serviceFee()`, never from a local constant. If the contract applied a rate the screen did
+ *  not know about, the client would sign a false breakdown. */
+export function split(gross: bigint, taxBps: number, feeBps: bigint = 0n) {
+  const tax = (gross * BigInt(taxBps) + 9_999n) / 10_000n;
   const fee = (gross * feeBps) / 10_000n;
   return { gross, tax, fee, net: gross - tax - fee };
+}
+
+export type Profile = { taxBps: number; utcOffsetMin: number };
+
+export const isPeru = (p: Profile | null | undefined): boolean =>
+  !!p && p.taxBps === PERU.taxBps && p.utcOffsetMin === PERU.utcOffsetMin;
+
+/** "8", "12.5": a rate in basis points written as a percentage, at most one decimal. */
+export const pctOf = (bps: number): string => (bps / 100).toFixed(1).replace(/\.0$/, "");
+
+/** Percentage the user types (0 to 50, one decimal at most) to basis points. null if invalid. */
+export function bpsFromPct(raw: string): number | null {
+  const t = raw.trim().replace(",", ".");
+  if (!/^\d{1,2}(\.\d)?$/.test(t)) return null;
+  const bps = Math.round(Number(t) * 100);
+  return bps >= 0 && bps <= MAX_TAX_BPS ? bps : null;
+}
+
+/** Tax period of a date, as the contract computes it: year * 12 + month - 1 in that offset. */
+export function periodOf(d: Date, utcOffsetMin: number): number {
+  const l = new Date(d.getTime() + utcOffsetMin * 60_000);
+  return l.getUTCFullYear() * 12 + l.getUTCMonth();
+}
+
+/** "UTC-5", "UTC+5:30". */
+export function offsetLabel(min: number): string {
+  const sign = min < 0 ? "-" : "+";
+  const a = Math.abs(min);
+  return `UTC${sign}${Math.floor(a / 60)}${a % 60 ? ":" + String(a % 60).padStart(2, "0") : ""}`;
 }
 
 export function short(addr: string) {
@@ -208,14 +244,30 @@ function hashOf(sent: any): string {
   return hash;
 }
 
-export type Receipt = { gross: bigint; concept: string; paid: boolean };
+export type Receipt = { gross: bigint; concept: string; paid: boolean; taxBps: number; utcOffsetMin: number };
 
 /** The receipt as the contract stores it. `null` if nobody issued it. */
 export async function readReceipt(freelancer: string, ref: string): Promise<Receipt | null> {
   const client = (await honorarios()) as any;
   const r = (await client.receipt({ freelancer, receipt_ref: ref })).result;
   if (!r) return null;
-  return { gross: BigInt(r.gross), concept: String(r.concept), paid: Boolean(r.paid) };
+  return {
+    gross: BigInt(r.gross), concept: String(r.concept), paid: Boolean(r.paid),
+    taxBps: Number(r.tax_bps), utcOffsetMin: Number(r.utc_offset_min),
+  };
+}
+
+/** Rate and tax-month time zone the freelancer chose. `null` if they have not chosen yet. */
+export async function readProfile(freelancer: string): Promise<Profile | null> {
+  const client = (await honorarios()) as any;
+  const p = (await client.profile({ freelancer })).result;
+  return p ? { taxBps: Number(p.tax_bps), utcOffsetMin: Number(p.utc_offset_min) } : null;
+}
+
+export async function setProfileWithWallet(freelancer: string, p: Profile): Promise<string> {
+  const client = (await honorarios(freelancer)) as any;
+  const tx = await client.set_profile({ freelancer, tax_bps: p.taxBps, utc_offset_min: p.utcOffsetMin });
+  return hashOf(await tx.signAndSend());
 }
 
 /** The freelancer issues the receipt by signing with Freighter. Only issued receipts can be paid. */
@@ -270,7 +322,7 @@ export async function taxReserve(freelancer: string): Promise<bigint> {
 /** Gross received in the month, read from the contract: it does not depend on how many events the RPC keeps. */
 export async function monthGross(freelancer: string): Promise<{ period: number; gross: bigint }> {
   const client = (await honorarios()) as any;
-  const period = Number((await client.current_period()).result);
+  const period = Number((await client.current_period({ freelancer })).result);
   const tx = await client.month_gross({ freelancer, period });
   return { period, gross: BigInt(tx.result) };
 }
@@ -280,6 +332,8 @@ export type Paid = {
   net: bigint;
   tax: bigint;
   fee: bigint;
+  /** Rate the contract applied to this payment, in basis points. */
+  taxBps: number;
   ref: string;
   payer: string;
   txHash: string;
@@ -323,6 +377,7 @@ export async function paidEvents(freelancer: string): Promise<Paid[]> {
         tax: BigInt(v.tax),
         // The fee field exists since the contract can charge a service fee.
         fee: BigInt(v.fee ?? 0),
+        taxBps: Number(v.tax_bps),
         ref: String(v.receipt_ref),
         payer: String(v.payer),
         txHash: e.txHash,

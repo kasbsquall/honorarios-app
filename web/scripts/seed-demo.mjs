@@ -2,7 +2,7 @@
 // one issued and unpaid receipt so anyone can try the payment page. Without this the sample
 // shows the dull case ("you owe nothing"), which is exactly the month the product is not
 // needed. Everything is real and stays on the chain. It can be rerun: it skips what is done.
-import { CONTRACT, DEMO, addr, client, ensureClientUsdc, ensureTrustline, freelancer, i128, invoke, read, str, usdc } from "./chain.mjs";
+import { CONTRACT, DEMO, addr, client, ensureClientUsdc, ensureTrustline, freelancer, i128, invoke, read, str, u32, i32, usdc } from "./chain.mjs";
 
 if (freelancer.publicKey() !== DEMO) throw new Error("The sample panel's account is not the test freelancer's account.");
 
@@ -21,6 +21,14 @@ const trust = await ensureTrustline(freelancer);
 if (trust) console.log(`freelancer USDC trustline: ${trust}`);
 const bought = await ensureClientUsdc(toPay + 200);
 if (bought) console.log(`client USDC purchase: ${bought}`);
+
+// Since v2 the contract refuses to issue without a profile. The sample account uses the Peru
+// preset (8%, Lima time), the only one whose threshold logic the panel shows.
+const profile = await read("profile", addr(DEMO));
+if (!profile || profile.tax_bps !== 800 || profile.utc_offset_min !== -300) {
+  const h = await invoke(freelancer, "set_profile", addr(DEMO), u32(800), i32(-300));
+  console.log(`profile set to the Peru preset (8%, UTC-5): ${h}`);
+}
 
 for (const r of RECEIPTS) {
   let rec = await read("receipt", addr(DEMO), str(r.ref));

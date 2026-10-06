@@ -1,9 +1,9 @@
 import "./styles.css";
 import "./panel.css";
 import { StrKey } from "@stellar/stellar-sdk";
-import { connectPasskey, createPasskeyWallet, extendWithPasskey, issueWithPasskey, restorePasskey, withdrawWithPasskey } from "./passkey";
+import { connectPasskey, createPasskeyWallet, extendWithPasskey, issueWithPasskey, restorePasskey, setProfileWithPasskey, withdrawWithPasskey } from "./passkey";
 import {
-  CONTRACT_ID, EXPLORER, FREIGHTER_INSTALL, type Issued, type Paid, addUsdcTrustline, connectWallet, extendWithWallet, fromUnits, issueWithWallet, issuedEvents, readReceipt,
+  CONTRACT_ID, EXPLORER, FREIGHTER_INSTALL, type Issued, type Paid, PERU, type Profile, addUsdcTrustline, bpsFromPct, isPeru, offsetLabel, pctOf, periodOf, readProfile, setProfileWithWallet, connectWallet, extendWithWallet, fromUnits, issueWithWallet, issuedEvents, readReceipt,
   monthGross as chainMonthGross, paidEvents, reserveLiveUntil, sendUsdcWithMemo, short, taxReserve, toUnits, usdcBalance, withdrawWithWallet,
 } from "./stellar";
 import { type AnchorTx, anchorLogin, anchorTx, startWithdraw, withdrawLimits } from "./sep24";
@@ -52,6 +52,12 @@ let pending: Issued[] = [];
 let liveUntil: Date | null = null;
 // Only a G account needs a USDC trustline; a smart wallet receives through the SAC without one.
 let hasTrustline: boolean | null = null;
+// Rate and time zone saved on chain. undefined while reading, null if the freelancer has not chosen yet.
+let profile: Profile | null | undefined = undefined;
+// The settings step replaces the dashboard while it is open.
+let settingsOpen = false;
+// Why the settings step opened on its own, shown above the form.
+let settingsReason = "";
 
 // `?demo` opens the sample dashboard without going through the intro: it is the link in the README.
 // Deferred like the passkey branch, because the panel uses constants declared further down.
@@ -64,16 +70,22 @@ function enter(address: string, how: Mode) {
   document.getElementById("who")!.innerHTML =
     `${how === "passkey" ? `<i class="ph-light ph-fingerprint" aria-hidden="true"></i> Passkey · ` : ""}${
       how === "demo" ? `<i class="ph-light ph-eye" aria-hidden="true"></i> Sample · ` : ""}${short(me)}`;
-  renderPanel();
+  render();
   load();
+}
+
+function render() {
+  if (settingsOpen) renderSettings();
+  else renderPanel();
 }
 
 function renderIntro(error = "") {
   app.innerHTML = `
   <section class="intro rise">
-    <p class="lbl">For freelancers in Peru who get paid from abroad</p>
-    <h1>Your SUNAT income-tax prepayment, set aside from the first dollar you earn abroad.</h1>
-    <p>Every payment from abroad goes through a contract on Stellar: 8% is held in a reserve in your name that only you can move, and the rest lands in your wallet. If the month goes over your threshold with SUNAT (Peru's tax authority), S/ 4,010 in the general case, that reserve covers your income-tax prepayment (pago a cuenta de cuarta categoría). If it doesn't, the money is still yours.</p>
+    <p class="lbl">For freelancers paid by clients abroad</p>
+    <h1>Set aside your taxes the moment a foreign client pays you.</h1>
+    <p>When a client abroad pays you, the full amount lands in your account. Nobody withholds anything, and the tax is due weeks or months later. By then the money is often spent.</p>
+    <p>Here every payment goes through a contract on Stellar. The share you choose is held in a reserve in your name that only you can move, and the rest lands in your wallet. Peru is the first fully supported country: 8% for the income-tax prepayment, with SUNAT's monthly threshold tracked for you. Anywhere else you pick the percentage, and the app makes no claim about your country's rules.</p>
     <label class="field name"><span class="lbl">Your name</span><input id="name" maxlength="40" placeholder="How it should appear on your passkey"></label>
     <div class="actions">
       <button class="btn" id="create"><i class="ph-light ph-fingerprint" aria-hidden="true"></i>Create wallet with passkey</button>
@@ -89,8 +101,8 @@ function renderIntro(error = "") {
   <section class="how rise" style="--i:1">
     <ol>
       <li><span class="lbl">01</span><div><b>You issue your receipt and send the link</b><small>Amount, receipt number and description. The receipt is recorded in the contract, and your client can pay only that amount, once. They pay with Freighter; if they only hold XLM, Stellar converts it along the way.</small></div></li>
-      <li><span class="lbl">02</span><div><b>The contract splits the payment on the spot</b><small>8% stays reserved in your name inside the contract and the rest lands in your wallet. It is a single transaction, and anyone can verify it.</small></div></li>
-      <li><span class="lbl">03</span><div><b>You withdraw when it's time to file</b><small>The dashboard estimates your prepayment for the month, explains how to pay it in soles and prepares a draft of your Recibo por Honorarios Electrónico (electronic fee receipt).</small></div></li>
+      <li><span class="lbl">02</span><div><b>The contract splits the payment on the spot</b><small>Your rate stays reserved in your name inside the contract and the rest lands in your wallet. The rate is written into each receipt when you issue it, so your client sees exactly what they sign. It is a single transaction, and anyone can verify it.</small></div></li>
+      <li><span class="lbl">03</span><div><b>You withdraw when it's time to file</b><small>In Peru, the dashboard estimates your prepayment for the month, explains how to pay it in soles and prepares a draft of your Recibo por Honorarios Electrónico (electronic fee receipt). Elsewhere it shows what you received this month and what is set aside.</small></div></li>
     </ol>
     <p class="alt"><a href="${EXPLORER}/contract/${CONTRACT_ID}" target="_blank" rel="noopener"><i class="ph-light ph-file-code" aria-hidden="true"></i> The contract on Stellar Expert</a> · open source · Stellar testnet</p>
     <p class="alt price"><i class="ph-light ph-receipt" aria-hidden="true"></i> <b>What it would cost:</b> the plan is to charge 0.5% per settled payment, with no monthly fee. The contract has a hard cap of 1% that its constructor refuses to exceed, and <b>today it is deployed at zero</b>. You don't have to take our word for it: the fee is public on chain, and the payment screen reads it from there before your client signs.</p>
@@ -120,10 +132,12 @@ async function load() {
   // Independent calls. The event scan is the fragile one (many windows against the public
   // RPC); if it fails it must not wipe the reserve, which already answered.
   const isG = me.startsWith("G");
-  const [r, e, m, iss, ttl, tl] = await Promise.allSettled([
+  const [r, e, m, iss, ttl, tl, pr] = await Promise.allSettled([
     taxReserve(me), paidEvents(me), chainMonthGross(me), issuedEvents(me), reserveLiveUntil(me),
-    isG ? usdcBalance(me) : Promise.resolve(0n),
+    isG ? usdcBalance(me) : Promise.resolve(0n), readProfile(me),
   ]);
+  // A failed read stays undefined: "no profile" would send the user to set one they may already have.
+  profile = pr.status === "fulfilled" ? pr.value : undefined;
   reserve = r.status === "fulfilled" ? r.value : null;
   events = e.status === "fulfilled" ? e.value : null;
   monthly = m.status === "fulfilled" ? m.value.gross : null;
@@ -136,21 +150,19 @@ async function load() {
   hasTrustline = tl.status === "fulfilled" ? tl.value !== null : null;
   // It only counts as a real error when nothing could be read from the contract.
   loadError = r.status === "rejected" && m.status === "rejected";
-  renderPanel();
+  // First visit of a new account: the rate has to be chosen before anything else makes sense.
+  if (profile === null && mode !== "demo" && !settingsOpen) {
+    settingsOpen = true;
+    settingsReason = "First step: choose how much of each payment to set aside. The contract needs it before you issue your first receipt.";
+  }
+  render();
 }
 
-// The contract closes the month at midnight Lima time. The fallback measures the same way,
-// without depending on the browser's time zone.
-const PERU_OFFSET_MS = 5 * 3_600_000;
-const limaMonth = (d: Date) => {
-  const l = new Date(d.getTime() - PERU_OFFSET_MS);
-  return l.getUTCFullYear() * 12 + l.getUTCMonth();
-};
-
-function monthGross(list: Paid[]) {
-  const now = limaMonth(new Date());
-  return list.filter((p) => limaMonth(p.at) === now).reduce((s, p) => s + p.gross, 0n);
-}
+// The contract closes the month at midnight in the freelancer's time zone. The panel measures
+// the same way, without depending on the browser's time zone. Without a profile the contract uses UTC.
+const offsetNow = () => profile?.utcOffsetMin ?? 0;
+const tzMonth = (d: Date) => periodOf(d, offsetNow());
+const PERU_OFFSET_MS = -PERU.utcOffsetMin * 60_000;
 
 function readFlag(key: string): boolean {
   try {
@@ -195,7 +207,10 @@ function renderPanel() {
   const loading = events === null && !loadError;
   const list = events ?? [];
   // The dashboard frames one month: adding payments from earlier months would mix periods.
-  const thisMonth = list.filter((p) => limaMonth(p.at) === limaMonth(new Date()));
+  const thisMonth = list.filter((p) => tzMonth(p.at) === tzMonth(new Date()));
+  // Threshold, SUNAT estimate and receipt draft exist only for the verified Peru preset.
+  const peru = isPeru(profile);
+  const rate = profile ? pctOf(profile.taxBps) : null;
   const net = thisMonth.reduce((s, p) => s + p.net, 0n);
   // With no data, no number is painted: a 0 asserts something we don't know.
   const val = (fn: () => string) => (loading ? "" : loadError ? "—" : fn());
@@ -213,7 +228,7 @@ function renderPanel() {
   const pen2 = (n: number) => "S/ " + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const gap = est.duePen !== null && reservePen !== null ? est.duePen - reservePen : null;
   const reserveState =
-    loading || loadError || gap === null ? ""
+    !peru || loading || loadError || gap === null ? ""
     : est.duePen === 0 && fxOdd ? `<span class="tag warn"><i class="ph-light ph-warning" aria-hidden="true"></i>Check the exchange rate before relying on this</span>`
     : est.duePen === 0 && est.provisional ? `<span class="tag"><i class="ph-light ph-dots-three-circle" aria-hidden="true"></i>Confirm your other income for the month to know whether there is anything to cover</span>`
     : est.duePen === 0 ? `<span class="tag ok"><i class="ph-light ph-check" aria-hidden="true"></i>No income-tax prepayment to cover this month</span>`
@@ -227,30 +242,35 @@ function renderPanel() {
   ${mode === "demo" ? `<p class="note" role="status"><i class="ph-light ph-eye" aria-hidden="true"></i> Sample dashboard with a test account on testnet: receipts, payments, the reserve and the month-to-date total are read live from the chain. This month crosses the threshold, so the block below shows a real income-tax prepayment. The reserve falls short of it on purpose: this account withdrew part of its reserve before the month closed, which is exactly what the app warns against. Issuing receipts and withdrawing need that account's signature. What you can do is open a receipt under "Awaiting payment" and pay it with Freighter on testnet. <a href="${EXPLORER}/${DEMO_ADDRESS.startsWith("G") ? "account" : "contract"}/${DEMO_ADDRESS}" target="_blank" rel="noopener">View the account <i class="ph-light ph-arrow-up-right" aria-hidden="true"></i></a></p>` : ""}
   <section class="hero rise" style="--i:0">
     <div>
-      <p class="lbl"><i class="ph-light ph-vault" aria-hidden="true"></i> Tax reserve · 8% of every payment</p>
+      <div class="rc-top"><p class="lbl"><i class="ph-light ph-vault" aria-hidden="true"></i> Tax reserve · ${
+        profile === undefined ? "reading your rate" : rate === null ? "rate not chosen yet" : `${rate}% on new receipts`}</p>
+        <button type="button" class="linkbtn" id="settings"><i class="ph-light ph-sliders-horizontal" aria-hidden="true"></i> Tax settings</button></div>
       <p class="kpi num ${loading ? "sk" : ""}">${val(() => fromUnits(reserve!))}<small>USDC</small></p>
       ${reserveState}
-      <p class="kpi-note">${mode === "demo" && reserve === 0n ? "This account already withdrew its reserve during the demo, which is why it is at zero. " : ""}Only you can move it. It covers your income-tax prepayment if the month goes over your threshold, S/ ${est.thresholdPen.toLocaleString("en-US")}; if it doesn't, the money stays yours.</p>
+      <p class="kpi-note">${mode === "demo" && reserve === 0n ? "This account already withdrew its reserve during the demo, which is why it is at zero. " : ""}Only you can move it. ${peru
+        ? `It covers your income-tax prepayment if the month goes over your threshold, S/ ${est.thresholdPen.toLocaleString("en-US")}; if it doesn't, the money stays yours.`
+        : "It is the share you chose to set aside for your taxes. When they are due, withdraw it and pay them."}</p>
       ${ttlLine()}
       <form id="withdraw" class="withdraw">
         <label class="field"><span class="lbl">Send reserve to</span><input class="num" name="to" required placeholder="Stellar account (G… or C…)"></label>
         <label class="field amt"><span class="lbl">Amount (USDC)</span><input class="num" name="amount" required inputmode="decimal" pattern="\\d+(\\.\\d{1,7})?" value="${reserve ? fromUnits(reserve, 7).replace(/,/g, "").replace(/\.?0+$/, "") : ""}"></label>
         <button class="btn ghost" type="submit" ${!reserve ? "disabled" : ""}><i class="ph-light ph-arrow-square-out" aria-hidden="true"></i>Withdraw reserve</button>
-        ${gap !== null && est.duePen === 0 && !est.provisional ? `<p class="u wd-hint">This month is under the threshold, so this reserve is yours. It is still better to wait until the month closes: one more payment can push it over.</p>` : ""}
+        ${peru && gap !== null && est.duePen === 0 && !est.provisional ? `<p class="u wd-hint">This month is under the threshold, so this reserve is yours. It is still better to wait until the month closes: one more payment can push it over.</p>` : ""}
         <p class="wd-out" role="status">${!reserve && !loading ? `<span class="u">${loadError ? "We couldn't read your reserve, so it can't be withdrawn yet." : "No reserve to withdraw yet. It shows up here as soon as you receive a payment."}</span>` : ""}</p>
       </form>
     </div>
     <dl class="stats">
       <div><dt><i class="ph-light ph-wallet" aria-hidden="true"></i> Net received this month</dt><dd class="num ${loading ? "sk" : ""}">${val(() => fromUnits(net))} <small>USDC</small></dd></div>
       <div><dt><i class="ph-light ph-rows" aria-hidden="true"></i> Payments this month</dt><dd class="num ${loading ? "sk" : ""}">${val(() => String(thisMonth.length))}</dd></div>
-      <div><dt><i class="ph-light ph-percent" aria-hidden="true"></i> Reserve rate</dt><dd class="num">8<small>%</small></dd></div>
+      <div><dt><i class="ph-light ph-percent" aria-hidden="true"></i> Reserve rate for new receipts</dt><dd class="num">${rate ?? "—"}<small>%</small></dd></div>
     </dl>
   </section>
-  <section class="grid2">
+  <section class="grid2${peru ? "" : " plain"}">
     <div class="block rise" style="--i:1" id="threshold"></div>
     <form class="block rise" style="--i:2" id="newlink">
       <p class="lbl"><i class="ph-light ph-link-simple" aria-hidden="true"></i> New receipt and payment link</p>
-      <p class="u">You sign the receipt and it is recorded in the contract. Your client can pay only that amount, once.</p>
+      <p class="u">You sign the receipt and it is recorded in the contract. Your client can pay only that amount, once.${
+        rate !== null ? ` It sets aside ${rate}% of the payment, the rate in your tax settings today.` : ""}</p>
       <div class="row2">
         <label class="field"><span class="lbl">Amount (USDC)</span><input class="num" name="amount" inputmode="decimal" required pattern="\\d+(\\.\\d{1,7})?" placeholder="500.00"></label>
         <label class="field"><span class="lbl">Receipt no.</span><input class="num" name="ref" required maxlength="20" placeholder="E001-2"></label>
@@ -279,12 +299,12 @@ function renderPanel() {
           ? `<div class="emptybox"><i class="ph-light ph-cloud-slash" aria-hidden="true"></i><p>We couldn't read the network, so we don't know whether you have payments this month.</p></div>`
           : list.length
           ? list.map((p, i) => `<div class="rise" style="--i:${Math.min(i, 7)}">${receiptCard({
-              gross: p.gross, title: `From ${short(p.payer)}`, ref: p.ref, text: RECEIPT_PANEL,
+              gross: p.gross, title: `From ${short(p.payer)}`, ref: p.ref, text: RECEIPT_PANEL, taxBps: p.taxBps,
               actual: { net: p.net, tax: p.tax, fee: p.fee },
               badge: `<span class="badge ok"><i class="ph-light ph-check" aria-hidden="true"></i>Paid</span>`,
               footLeft: p.at.toLocaleDateString("en-US", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
               txHash: p.txHash,
-            })}<button class="btn ghost rhe-open" data-i="${i}"><i class="ph-light ph-file-text" aria-hidden="true"></i>Draft Recibo por Honorarios (fee receipt)</button></div>`).join("")
+            })}${peru ? `<button class="btn ghost rhe-open" data-i="${i}"><i class="ph-light ph-file-text" aria-hidden="true"></i>Draft Recibo por Honorarios (fee receipt)</button>` : ""}</div>`).join("")
           : (monthly !== null && monthly > 0n) || (reserve !== null && reserve > 0n)
           ? `<div class="emptybox"><i class="ph-light ph-clock-counter-clockwise" aria-hidden="true"></i><p>The contract has payments of yours this month, but the node no longer keeps their events: testnet retains about a week. The figures above come from the contract and are exact. What is missing here is the detail of each payment.</p></div>`
           : `<div class="emptybox"><i class="ph-light ph-receipt" aria-hidden="true"></i><p>No payments yet. Create a link and send it to your client.</p></div>`
@@ -293,7 +313,9 @@ function renderPanel() {
 
   // Without the contract's month-to-date total there is no reliable base: events only cover
   // the RPC window, and a short base produces the one error this product cannot make.
-  renderThreshold();
+  if (peru) renderThreshold();
+  else renderMonthPlain(thisMonth);
+  app.querySelector("#settings")!.addEventListener("click", () => openSettings(""));
   bindLinkForm();
   bindWithdraw();
   app.querySelector("#retry")?.addEventListener("click", () => {
@@ -554,6 +576,15 @@ function bindLinkForm() {
     const ref = String(d.get("ref")).trim();
     const concept = String(d.get("concept")).trim();
     if (gross <= 0n || !ref) return;
+    // The contract refuses to issue without a rate: send the user to choose one instead of failing.
+    if (profile === null) {
+      openSettings("Before your first receipt, choose how much of each payment to set aside. Then come back and issue it.");
+      return;
+    }
+    if (profile === undefined) {
+      show(`<p class="error">We couldn't read your tax settings from the network. Reload in a moment before issuing.</p>`);
+      return;
+    }
     if (new TextEncoder().encode(concept).length > MAX_CONCEPT_BYTES) {
       show(`<p class="error">The description is too long for the receipt. Please shorten it a little.</p>`);
       return;
@@ -737,5 +768,117 @@ async function sendSep24() {
     sep.busy = false;
     sep.msg = err instanceof Error ? err.message : "Could not send to the anchor.";
     renderSep24();
+  }
+}
+
+/** Month block for a profile outside the Peru preset: income and reserve, no threshold logic.
+ *  The app does not know that country's rules, so it does not estimate anything. */
+function renderMonthPlain(thisMonth: Paid[]) {
+  const box = app.querySelector("#threshold")!;
+  const loading = (events === null && !loadError) || profile === undefined;
+  const month = new Date(Date.now() + offsetNow() * 60_000).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const setAside = thisMonth.reduce((s, p) => s + p.tax, 0n);
+  const val = (fn: () => string) => (loading ? "" : loadError ? "—" : fn());
+  box.innerHTML = `
+    <div class="rc-top"><p class="lbl"><i class="ph-light ph-calendar-blank" aria-hidden="true"></i> This month · ${month}</p></div>
+    <p class="th-num num ${loading ? "sk" : ""}">${val(() => (monthly === null ? "—" : fromUnits(monthly)))}<small>USDC</small></p>
+    <p class="th-cap">received this month, read from the contract</p>
+    <dl class="th-rows">
+      <div><dt><i class="ph-light ph-vault" aria-hidden="true"></i> Set aside from this month's payments</dt><dd class="num ${loading ? "sk" : ""}">${val(() => fromUnits(setAside))} <small>USDC</small></dd></div>
+      <div><dt><i class="ph-light ph-percent" aria-hidden="true"></i> Your reserve rate for new receipts</dt><dd class="num">${profile ? `${pctOf(profile.taxBps)}%` : "—"}</dd></div>
+      <div><dt><i class="ph-light ph-clock" aria-hidden="true"></i> Your tax month closes at midnight</dt><dd class="num">${profile ? offsetLabel(profile.utcOffsetMin) : "—"}</dd></div>
+    </dl>
+    <p class="th-help"><i class="ph-light ph-info" aria-hidden="true"></i> This app does not know the tax rules of your country, so it shows no threshold and no estimate of what you owe. The reserve is the share you chose. Confirm the right amount with your accountant.</p>`;
+}
+
+function openSettings(reason: string) {
+  settingsOpen = true;
+  settingsReason = reason;
+  render();
+  window.scrollTo(0, 0);
+}
+
+// UTC offsets in use around the world, in minutes. The browser's own offset is added if missing.
+const OFFSETS = [-720, -660, -600, -570, -540, -480, -420, -360, -300, -240, -210, -180, -120, -60, 0, 60, 120, 180, 210, 240, 270, 300, 330, 345, 360, 390, 420, 480, 525, 540, 570, 600, 630, 660, 720, 765, 780, 840];
+
+function renderSettings(out = "") {
+  const browserOffset = -new Date().getTimezoneOffset();
+  const peruNow = profile ? isPeru(profile) : true;
+  const tzSel = profile && !isPeru(profile) ? profile.utcOffsetMin : browserOffset;
+  const offsets = [...new Set([...OFFSETS, browserOffset, tzSel])].sort((a, b) => a - b);
+  const pctNow = profile && !isPeru(profile) ? pctOf(profile.taxBps) : "";
+  app.innerHTML = `
+  <section class="settings rise">
+    <p class="lbl"><i class="ph-light ph-sliders-horizontal" aria-hidden="true"></i> Tax settings</p>
+    <h1>Where do you pay taxes?</h1>
+    ${settingsReason ? `<p class="note" role="status"><i class="ph-light ph-info" aria-hidden="true"></i> ${esc(settingsReason)}</p>` : ""}
+    ${profile ? `<p class="note"><i class="ph-light ph-seal-check" aria-hidden="true"></i> Saved on chain: ${isPeru(profile) ? "Peru preset, " : ""}${pctOf(profile.taxBps)}% of every payment, tax month in ${offsetLabel(profile.utcOffsetMin)}. If you change it, receipts you already issued keep the rate they were issued with. Only new receipts use the new one.</p>` : ""}
+    <form id="profile-form" class="settings-form">
+      <fieldset class="choices">
+        <legend class="sr">Country</legend>
+        <label class="choice"><input type="radio" name="where" value="peru" ${peruNow ? "checked" : ""}>
+          <span><b>Peru</b> <span class="tag ok"><i class="ph-light ph-seal-check" aria-hidden="true"></i>Verified preset</span>
+          <small>${pctOf(PERU.taxBps)}% of every payment, the rate of the fourth-category income-tax prepayment. Your tax month closes on Lima time (${offsetLabel(PERU.utcOffsetMin)}). The dashboard tracks SUNAT's monthly threshold and drafts your Recibo por Honorarios Electrónico (electronic fee receipt).</small></span></label>
+        <label class="choice"><input type="radio" name="where" value="other" ${peruNow ? "" : "checked"}>
+          <span><b>Another country</b><small>You choose the share of each payment to set aside and the time zone your tax month closes in.</small></span></label>
+      </fieldset>
+      <div class="other-fields" ${peruNow ? "hidden" : ""}>
+        <div class="row2">
+          <label class="field"><span class="lbl">Share to set aside (%)</span><input class="num" name="pct" inputmode="decimal" placeholder="0 to 50" value="${pctNow}"><small>Between 0 and 50, one decimal at most.</small></label>
+          <label class="field"><span class="lbl">Time zone</span><select name="tz">${offsets.map((o) =>
+            `<option value="${o}" ${o === tzSel ? "selected" : ""}>${offsetLabel(o)}${o === browserOffset ? " (this device)" : ""}</option>`).join("")}</select></label>
+        </div>
+        <p class="note"><i class="ph-light ph-warning-circle" aria-hidden="true"></i> This app does not know the tax rules of your country. Pick the share you want set aside from each payment, and confirm it with your accountant.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i>Save on chain</button>
+        ${profile ? `<button class="btn ghost" type="button" id="cancel">Back to the dashboard</button>` : ""}
+      </div>
+      <p class="wd-out" role="status">${out}</p>
+    </form>
+  </section>`;
+
+  const form = app.querySelector<HTMLFormElement>("#profile-form")!;
+  const other = form.querySelector<HTMLElement>(".other-fields")!;
+  form.querySelectorAll<HTMLInputElement>('input[name="where"]').forEach((r) =>
+    r.addEventListener("change", () => (other.hidden = form.querySelector<HTMLInputElement>('input[value="peru"]')!.checked)));
+  app.querySelector("#cancel")?.addEventListener("click", () => {
+    settingsOpen = false;
+    settingsReason = "";
+    render();
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveProfile(form);
+  });
+}
+
+async function saveProfile(form: HTMLFormElement) {
+  const status = form.querySelector(".wd-out")!;
+  const fail = (msg: string) => (status.innerHTML = `<span class="error">${esc(msg)}</span>`);
+  if (mode === "demo") return fail("The sample dashboard is read-only. Create your wallet with a passkey to save your own settings.");
+  const d = new FormData(form);
+  let next: Profile;
+  if (d.get("where") === "peru") {
+    next = { taxBps: PERU.taxBps, utcOffsetMin: PERU.utcOffsetMin };
+  } else {
+    const bps = bpsFromPct(String(d.get("pct") ?? ""));
+    if (bps === null) return fail("Enter a share between 0 and 50, with one decimal at most.");
+    next = { taxBps: bps, utcOffsetMin: Number(d.get("tz")) };
+  }
+  const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spin"></span>${mode === "passkey" ? "Confirm with your passkey" : "Sign with Freighter"}`;
+  try {
+    const hash = await (mode === "passkey" ? setProfileWithPasskey(me, next) : setProfileWithWallet(me, next));
+    profile = next;
+    settingsOpen = false;
+    settingsReason = "";
+    render();
+    app.insertAdjacentHTML("afterbegin", `<p class="note" role="status"><i class="ph-light ph-check" aria-hidden="true"></i> Tax settings saved: new receipts set aside ${pctOf(next.taxBps)}%. <a href="${EXPLORER}/tx/${hash}" target="_blank" rel="noopener">View transaction <i class="ph-light ph-arrow-up-right" aria-hidden="true"></i></a></p>`);
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="ph-light ph-floppy-disk" aria-hidden="true"></i>Save on chain`;
+    fail(err instanceof Error ? err.message : "Could not save your tax settings.");
   }
 }

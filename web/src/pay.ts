@@ -1,7 +1,7 @@
 import "./styles.css";
 import "./pay.css";
 import { StrKey } from "@stellar/stellar-sdk";
-import { EXPLORER, connectWallet, ensureUsdc, fromUnits, paidEvents, payInvoice, readReceipt, serviceFee, short } from "./stellar";
+import { EXPLORER, connectWallet, ensureUsdc, fromUnits, isPeru, paidEvents, pctOf, payInvoice, readReceipt, serviceFee, short } from "./stellar";
 import { MARK, RECEIPT_EN, esc, receiptCard } from "./ui";
 
 type Step = "connect" | "fund" | "sign" | "done";
@@ -23,6 +23,10 @@ const name = (q.get("name") ?? "").slice(0, 60);
 
 let gross = 0n;
 let concept = "";
+// Reserve rate and time zone recorded in the receipt when it was issued: the contract applies
+// exactly these, whatever the freelancer's profile says today.
+let taxBps = 0;
+let utcOffsetMin = 0;
 const validTo = StrKey.isValidEd25519PublicKey(to) || StrKey.isValidContract(to);
 let payer = "";
 // What the contract will actually charge, read from the chain. If the screen computed it
@@ -56,6 +60,8 @@ async function start() {
   }
   gross = r.gross;
   concept = r.concept || "Professional services";
+  taxBps = r.taxBps;
+  utcOffsetMin = r.utcOffsetMin;
   if (!r.paid) return render("connect");
   // Already paid: the contract would reject a second payment, so the proof of payment is shown.
   const paid = await paidEvents(to).then((l) => l.find((p) => p.ref === ref)).catch(() => undefined);
@@ -70,6 +76,7 @@ function stepState(step: Step, current: Step) {
 
 function render(current: Step, opts: { error?: string; busy?: boolean; txHash?: string; already?: boolean } = {}) {
   const done = current === "done";
+  const peru = isPeru({ taxBps, utcOffsetMin });
   const badge = done
     ? `<span class="badge ok"><i class="ph-light ph-check" aria-hidden="true"></i>Paid</span>`
     : `<span class="badge"><i class="ph-light ph-hourglass-simple" aria-hidden="true"></i>Due</span>`;
@@ -81,8 +88,8 @@ function render(current: Step, opts: { error?: string; busy?: boolean; txHash?: 
 
   app.innerHTML = `
   <section class="summary rise" style="--i:0">
-    <p class="lbl">Invoice from a freelancer in Peru</p>
-    <h1>${esc(name || "A freelancer in Peru")}</h1>
+    <p class="lbl">Invoice from a freelancer${peru ? " in Peru" : ""}</p>
+    <h1>${esc(name || (peru ? "A freelancer in Peru" : "A freelancer"))}</h1>
     <p class="to-addr num">${short(to)}</p>
     <p class="due num">${fromUnits(gross)}<small>USDC</small></p>
     <dl class="lines">
@@ -106,11 +113,11 @@ function render(current: Step, opts: { error?: string; busy?: boolean; txHash?: 
       feeState === "loading"
         ? `<article class="receipt sk" style="height:300px"></article>`
         : receiptCard({
-            gross, title: concept, ref, badge, text: RECEIPT_EN, feeBps: feeBps ?? 0n,
+            gross, title: concept, ref, badge, text: RECEIPT_EN, taxBps, feeBps: feeBps ?? 0n,
             footLeft: payer ? `from ${short(payer)}` : "",
             txHash: opts.txHash,
           })}</div>
-    <p class="note">You pay the full amount. The contract keeps 8% in a reserve that only the freelancer can withdraw for their Peruvian tax prepayment.${
+    <p class="note">You pay the full amount. The contract keeps ${pctOf(taxBps)}% in a reserve that only the freelancer can withdraw, ${peru ? "for their Peruvian tax prepayment" : "to pay their own taxes"}. That rate was fixed in the receipt when it was issued.${
       feeState === "loading" ? " Reading the split from the contract…"
       : feeState === "failed" ? " We could not read the service fee from the contract, so the split above is the default one. Check the contract before you sign."
       : feeBps === 0n ? " This contract charges no service fee: the split above is read from the contract itself."

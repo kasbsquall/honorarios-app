@@ -89,6 +89,9 @@ await page.locator("#name").pressSequentially("Kevin Soto", { delay: 90 });
 await pause(1200);
 mark("create_click");
 await page.getByRole("button", { name: "Create wallet with passkey" }).click();
+// New wallets have no tax profile yet: the panel opens the settings step first (Peru preset preselected).
+await page.getByRole("heading", { name: "Where do you pay taxes?" }).waitFor({ timeout: 180_000 });
+await page.getByRole("button", { name: "Save on chain" }).click();
 await page.locator(".kpi:not(.sk)").waitFor({ timeout: 180_000 });
 mark("wallet_ready", { who: await page.locator("#who").innerText() });
 await pause(5000);

@@ -1,4 +1,4 @@
-import { EXPLORER, fromUnits, split } from "./stellar";
+import { EXPLORER, fromUnits, pctOf, split } from "./stellar";
 
 export const MARK = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g transform="rotate(-90 12 12)" fill="none" stroke-width="4"><circle cx="12" cy="12" r="8.5" pathLength="100" stroke="currentColor" stroke-dasharray="90 10" stroke-dashoffset="-9"/><circle cx="12" cy="12" r="8.5" pathLength="100" stroke="var(--accent)" stroke-dasharray="6 94" stroke-dashoffset="-1"/></g></svg>`;
 
@@ -11,15 +11,15 @@ type ReceiptText = { kicker: string; net: string; tax: string; fee: string; stub
 export const RECEIPT_PANEL: ReceiptText = {
   kicker: "Payment",
   net: "Net to you",
-  tax: "Tax reserve · 8%",
+  tax: "Tax reserve",
   fee: "Service fee",
-  stub: "Reserve 8%",
+  stub: "Reserve",
 };
 
 export const RECEIPT_EN: ReceiptText = {
   kicker: "Invoice",
   net: "To the freelancer",
-  tax: "Peru tax reserve · 8%",
+  tax: "Tax reserve",
   fee: "Service fee",
   stub: "Tax reserve",
 };
@@ -30,13 +30,15 @@ export function receiptCard(opts: {
   ref: string;
   badge: string;
   text: ReceiptText;
+  /** Reserve rate of this receipt, in basis points, as the contract stores it. */
+  taxBps: number;
   feeBps?: bigint;
   /** Actual split of a settled payment, as published by the contract. */
   actual?: { net: bigint; tax: bigint; fee: bigint };
   footLeft?: string;
   txHash?: string;
 }) {
-  const { net, tax, fee } = opts.actual ?? split(opts.gross, opts.feeBps ?? 0n);
+  const { net, tax, fee } = opts.actual ?? split(opts.gross, opts.taxBps, opts.feeBps ?? 0n);
   const pct = (part: bigint) =>
     opts.gross === 0n ? "" : ` · ${(Number((part * 10000n) / opts.gross) / 100).toFixed(2).replace(/\.?0+$/, "")}%`;
   const t = opts.text;
@@ -52,7 +54,7 @@ export function receiptCard(opts: {
         fee > 0n ? `<i class="f" style="flex:${Number(fee)}"></i>` : ""}<i class="s" style="flex:${Number(tax)}"></i></div>
       <dl class="legend">
         <dt><span class="sq" style="background:var(--ink)"></span><i class="ph-light ph-wallet" aria-hidden="true"></i>${t.net}${pct(net)}</dt><dd>${fromUnits(net)}</dd>
-        <dt><span class="sq" style="background:var(--accent)"></span><i class="ph-light ph-vault" aria-hidden="true"></i>${t.tax}</dt><dd>${fromUnits(tax)}</dd>
+        <dt><span class="sq" style="background:var(--accent)"></span><i class="ph-light ph-vault" aria-hidden="true"></i>${t.tax} · ${pctOf(opts.taxBps)}%</dt><dd>${fromUnits(tax)}</dd>
         ${fee > 0n ? `<dt><span class="sq" style="background:var(--ink-3)"></span><i class="ph-light ph-receipt" aria-hidden="true"></i>${t.fee}${pct(fee)}</dt><dd>${fromUnits(fee)}</dd>` : ""}
       </dl>
       ${
@@ -65,6 +67,6 @@ export function receiptCard(opts: {
           : ""
       }
     </div>
-    <div class="stub"><span>${t.stub}</span></div>
+    <div class="stub"><span>${t.stub} ${pctOf(opts.taxBps)}%</span></div>
   </article>`;
 }

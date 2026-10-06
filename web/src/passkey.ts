@@ -1,6 +1,6 @@
 import { contract } from "@stellar/stellar-sdk";
 import { IndexedDBStorage, SmartAccountKit } from "smart-account-kit";
-import { CONTRACT_ID, NETWORK, RPC_URL } from "./stellar";
+import { CONTRACT_ID, NETWORK, type Profile, RPC_URL } from "./stellar";
 
 // OpenZeppelin contracts already deployed on testnet (stellar/smart-account-kit, demo/.env.example).
 const ACCOUNT_WASM_HASH = "1b5f4534a76322da2ad7c745f6900857a6802b0ca79850c35a03561df997785a";
@@ -75,5 +75,14 @@ export async function extendWithPasskey(freelancer: string): Promise<string> {
   const tx = await client.extend_reserve({ freelancer }, { restore: true });
   const res = await getKit().signAndSubmit(tx);
   if (!res.success) throw new Error("The reserve could not be renewed. Try again in a moment.");
+  return res.hash;
+}
+
+/** Saves the reserve rate and time zone on chain, signed with the passkey. */
+export async function setProfileWithPasskey(freelancer: string, p: Profile): Promise<string> {
+  const client = (await contract.Client.from({ contractId: CONTRACT_ID, networkPassphrase: NETWORK, rpcUrl: RPC_URL })) as any;
+  const tx = await client.set_profile({ freelancer, tax_bps: p.taxBps, utc_offset_min: p.utcOffsetMin });
+  const res = await getKit().signAndSubmit(tx);
+  if (!res.success) throw new Error("Your tax settings were not saved. Try again in a moment.");
   return res.hash;
 }
