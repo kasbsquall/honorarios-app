@@ -73,7 +73,7 @@ Honorarios is built by a Peruvian freelancer paid in dollars. One of his clients
 
 ## How it looks
 
-These screenshots were taken on v1, when the Peru rate was fixed in the contract. The v2 app adds the "Where do you pay taxes?" step before the first receipt.
+Screenshots of the live v2 app, sample dashboard on the Peru preset, taken October 6, 2026.
 
 | Sample dashboard: a month that crosses the threshold | Prepayment estimate in soles |
 |---|---|
@@ -83,7 +83,7 @@ These screenshots were taken on v1, when the Peru rate was fixed in the contract
 |---|---|
 | <img src="docs/screenshots/03-payment-due.png" alt="Payment page for a receipt, with the split between the freelancer and the reserve" width="440"> | <img src="docs/screenshots/04-payment-done.png" alt="The same receipt marked as paid, with a link to the transaction" width="440"> |
 
-And this is how a rejected attack looks in Stellar Expert, the second payment of receipt E001-1 (v1):
+And this is how a rejected attack looks in Stellar Expert, the second payment of receipt E001-1 on the v2 contract:
 
 <img src="docs/screenshots/09-rejected-attack.png" alt="Failed transaction in Stellar Expert: pay with receipt E001-1, which is already paid" width="640">
 
@@ -280,7 +280,7 @@ What we did not find is the combination: a set-aside that happens inside the cro
 - The app does not issue electronic receipts. The receipt recorded by the contract is the app's own, and SUNAT's is copied from the draft into SUNAT Operaciones en Línea. The draft does not include the minimum amount above which a Peruvian agent withholds: we have not verified it.
 - The detail of each payment and the list of pending receipts are rebuilt from RPC events, which testnet keeps for about a week. The monthly figures, the reserve, the profile and the status of each receipt live in the contract and do not expire. After that window the dashboard says so, and the draft for an old payment can no longer be generated.
 - The frontend's tax and split logic has 38 tests and the contract has 39. The rest of the frontend has no automated tests: the files in `web/e2e/` are walkthrough scripts with no assertions.
-- The video and screenshots were recorded on v1, with the rate fixed at 8%.
+- The video was recorded on v1, with the rate fixed at 8%.
 - In this deployment, the account that would receive the fee is the test account that deployed the contract. With the fee at zero it never receives anything.
 - The reserve is an organizing aid and does not replace advice from an accountant.
 

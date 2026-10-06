@@ -127,7 +127,7 @@ select.inline { background: none; border: 0; color: inherit; font: inherit; padd
 }
 
 /* The reserve verdict, placed right next to the figure it qualifies. */
-.tag { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-s); padding: 6px 12px; border: 1px solid var(--rule-strong); border-radius: 2px; color: var(--ink-2) }
+.tag { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-s); padding: 6px 12px; border: 1px solid var(--rule-strong); border-radius: 2px; color: var(--ink-2); margin-bottom: 14px }
 .tag.warn { border-color: var(--warn); color: var(--warn) }
 .tag.ok { border-color: var(--rule-strong) }
 .wd-hint { grid-column: 1 / -1; font-size: var(--t-s); line-height: 1.5 }
