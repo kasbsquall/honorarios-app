@@ -1,6 +1,7 @@
 // Withdrawal through a SEP-24 anchor on testnet: SDF's test anchor accepts Circle's USDC
 // and simulates the payout to a bank. On mainnet the same protocol is spoken by an anchor that
 // settles in soles; here it lets the full path run with test money.
+import { tr } from "./i18n";
 import { NETWORK, USDC, sign } from "./stellar";
 
 export const TEST_ANCHOR = "https://testanchor.stellar.org";
@@ -19,7 +20,7 @@ export type AnchorTx = {
 };
 
 async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error(`The anchor responded with ${res.status}.`);
+  if (!res.ok) throw new Error(tr(`The anchor responded with ${res.status}.`, `El ancla respondió con ${res.status}.`));
   return res.json() as Promise<T>;
 }
 
@@ -28,7 +29,7 @@ export async function anchorLogin(account: string): Promise<string> {
   const challenge = await json<{ transaction: string; network_passphrase: string }>(
     await fetch(`${TEST_ANCHOR}/auth?account=${account}`),
   );
-  if (challenge.network_passphrase !== NETWORK) throw new Error("The anchor is not on testnet.");
+  if (challenge.network_passphrase !== NETWORK) throw new Error(tr("The anchor is not on testnet.", "El ancla no está en testnet."));
   const signed = await sign(challenge.transaction, account);
   const { token } = await json<{ token: string }>(
     await fetch(`${TEST_ANCHOR}/auth`, {
@@ -66,6 +67,6 @@ export async function withdrawLimits(): Promise<{ min: number; max: number }> {
     await fetch(`${TEST_ANCHOR}/sep24/info`),
   );
   const usdc = info.withdraw?.[USDC.code];
-  if (!usdc?.enabled) throw new Error("The test anchor is not accepting USDC withdrawals right now.");
+  if (!usdc?.enabled) throw new Error(tr("The test anchor is not accepting USDC withdrawals right now.", "El ancla de pruebas no está aceptando retiros de USDC en este momento."));
   return { min: usdc.min_amount ?? 0, max: usdc.max_amount ?? Number.POSITIVE_INFINITY };
 }

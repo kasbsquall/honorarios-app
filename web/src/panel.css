@@ -1,9 +1,31 @@
-.intro { padding: 96px 0 160px; display: grid; gap: 24px; max-width: 60ch; justify-items: start }
+.intro { display: grid; gap: 24px; max-width: 60ch; justify-items: start }
+/* The empty half of the intro now carries the product itself: one receipt, already split. */
+.intro-wrap { display: grid; gap: 56px; padding: 96px 0 120px }
+@media (min-width: 1000px) {
+  .intro-wrap { grid-template-columns: minmax(0, 60ch) minmax(0, 1fr); column-gap: clamp(48px, 7vw, 112px); align-items: center }
+}
+/* Right padding leaves room for the torn stub, which otherwise pushed a phone screen sideways. */
+.intro-demo { display: grid; gap: 16px; width: 100%; max-width: 440px; justify-self: center; padding-right: 18px }
+.intro-wrap { overflow-x: clip }
+/* The torn stub reads as two pieces of paper: the frame moves off the article and onto each
+   piece, each keeps its own perforated edge, and the stub swings from its bottom corner.
+   With the frame on the article, the outline stayed put while the stub slid out of it. */
+.intro-demo .receipt { background: none; border: 0; box-shadow: none }
+.intro-demo .receipt::before, .intro-demo .receipt::after { display: none }
+.intro-demo .receipt .body { background: var(--surface); border: 1px solid var(--rule-strong); border-right-style: dashed;
+  border-radius: var(--r) 0 0 var(--r); box-shadow: var(--shadow) }
+.intro-demo .receipt .stub { border: 1px solid var(--rule-strong); border-left: 1px dashed var(--rule-strong);
+  border-radius: 0 var(--r) var(--r) 0; box-shadow: var(--shadow); transform-origin: left bottom;
+  animation: tear 320ms var(--ease) 900ms both }
+@keyframes tear { to { transform: translateX(8px) rotate(2deg) } }
+/* Without motion the stub is simply shown already torn. */
+@media (prefers-reduced-motion: reduce) { .intro-demo .receipt .stub { transform: translateX(8px) rotate(2deg) } }
+.intro-demo .u { max-width: 40ch; line-height: 1.55 }
 .intro h1 { font-size: clamp(2.2rem, 1.2rem + 3vw, 3.8rem); line-height: .95; letter-spacing: -.035em; font-stretch: 88% }
 .intro p:not(.lbl) { color: var(--ink-2) }
 
 .hero { display: grid; gap: 40px; padding: 48px 0 64px; border-bottom: 1px solid var(--rule-strong) }
-@media (min-width: 900px) { .hero { grid-template-columns: 7fr 5fr; align-items: end } }
+@media (min-width: 900px) { .hero { grid-template-columns: 7fr 5fr; align-items: start } .stats { margin-top: 44px } }
 .kpi { font-size: clamp(3.2rem, 1.5rem + 6.5vw, 6.5rem); line-height: .88; letter-spacing: -.05em; margin: 20px 0 16px; overflow-wrap: anywhere; justify-self: start }
 .kpi small, .stats small, .th-num small { font-size: var(--t-s); letter-spacing: 0; color: var(--ink-3); margin-left: 8px }
 .kpi-note { color: var(--ink-2); font-size: var(--t-s); max-width: 44ch }
@@ -101,10 +123,17 @@ select.inline { background: none; border: 0; color: inherit; font: inherit; padd
 
 /* The three steps: what a newcomer needs before deciding to create a wallet. */
 .how { border-top: 1px solid var(--rule-strong); padding: 40px 0 120px; display: grid; gap: 28px }
-.how ol { display: grid; gap: 1px; background: var(--rule-strong); border: 1px solid var(--rule-strong); list-style: none; padding: 0 }
-@media (min-width: 860px) { .how ol { grid-template-columns: repeat(3, 1fr) } }
-.how li { background: var(--surface); padding: 24px 22px; display: grid; gap: 12px; align-content: start }
-.how b { display: block; font-size: var(--t-m); font-weight: 600; margin-bottom: 6px }
+/* A sequence read left to right, not three boxed cards: the rule over each step carries it. */
+.how ol { display: grid; gap: 0; list-style: none; padding: 0 }
+/* Each step brings its own rule; the section line above them only doubled it. */
+.how { border-top: 0; padding-top: 0 }
+.how li { padding: 22px 0 28px; display: grid; gap: 14px; align-content: start; border-top: 1px solid var(--rule-strong) }
+.how li > .lbl { font: 400 var(--t-2xl)/.9 var(--f-mono); letter-spacing: -.04em; color: var(--ink-3); font-variant-numeric: tabular-nums slashed-zero }
+@media (min-width: 860px) {
+  .how ol { grid-template-columns: repeat(3, 1fr); column-gap: 40px }
+  .how li { border-top-color: var(--ink) }
+}
+.how li b { display: block; font-size: var(--t-m); font-weight: 600; margin-bottom: 6px }
 .how small { color: var(--ink-2); line-height: 1.6 }
 .how .alt a { display: inline-flex; gap: 6px; align-items: center }
 
@@ -114,9 +143,14 @@ select.inline { background: none; border: 0; color: inherit; font: inherit; padd
 /* The link form is short and the tax block is very long: keep the form in view while
    scrolling so half the screen does not sit empty. */
 @media (min-width: 900px) {
-  .grid2 { align-items: start }
+  /* The 1px gap painted the space under the short form as a grey slab: the divider is a border now. */
+  .grid2 { align-items: start; gap: 0; background: var(--surface) }
+  .grid2 > .block:first-child { border-right: 1px solid var(--rule-strong) }
   #newlink { position: sticky; top: 24px }
 }
+/* Below the two-column split the tax block still needs air between its paragraphs and fields. */
+.th-body { display: grid; row-gap: 24px }
+.th-body > div { display: grid; gap: 18px; align-content: start }
 /* Past a certain width the tax block splits in two: reading on the left, inputs on
    the right. The measure is the block width, since a media query on the window split
    a 500px column on wide screens and broke the labels word by word. */

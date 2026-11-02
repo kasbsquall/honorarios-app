@@ -1,3 +1,4 @@
+import { dateLocale, getLang, tr } from "./i18n";
 import { EXPLORER, type Paid, fromUnits } from "./stellar";
 import { esc } from "./ui";
 
@@ -22,7 +23,7 @@ const pen = (p: Paid, fx: number | null) =>
 // of the month cannot be dated the next day because the user happens to be travelling.
 // The month is written as a word so the date cannot be misread as day/month or month/day.
 const fmtDate = (d: Date) =>
-  new Date(d.getTime() - 5 * 3_600_000).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+  new Date(d.getTime() - 5 * 3_600_000).toLocaleDateString(dateLocale(), { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 
 function readProfile(): Profile {
   try {
@@ -41,11 +42,26 @@ function saveProfile(p: Profile) {
  *  minimum because we have not verified it: the user has to check it. */
 function withholdingLine(abroad: boolean) {
   return abroad
-    ? "Does not apply. A client not domiciled in Peru is not a withholding agent."
-    : "May apply. If your client is domiciled in Peru and is a withholding agent, they must withhold 8% when the receipt exceeds the minimum amount set by SUNAT. Check that minimum and subtract what was withheld in the panel.";
+    ? tr("Does not apply. A client not domiciled in Peru is not a withholding agent.",
+      "No aplica. Un cliente no domiciliado en Perú no es agente de retención.")
+    : tr("May apply. If your client is domiciled in Peru and is a withholding agent, they must withhold 8% when the receipt exceeds the minimum amount set by SUNAT. Check that minimum and subtract what was withheld in the panel.",
+      "Puede aplicar. Si tu cliente está domiciliado en Perú y es agente de retención, debe retenerte el 8% cuando el recibo supera el monto mínimo que fija SUNAT. Verifica ese mínimo y descuenta lo retenido en el panel.");
 }
 
 function draftText(p: Paid, f: Record<string, string>) {
+  // In Spanish the lines already carry the names of SUNAT's form, so no glosses are needed.
+  if (getLang() === "es") return [
+    "BORRADOR · Recibo por Honorarios Electrónico",
+    `Emisor: ${f.name || "(tu nombre)"} · RUC ${f.ruc || "(tu RUC)"}`,
+    `Cliente: ${f.client || "(nombre del cliente)"} · ${f.docType} ${f.docNum || "(número)"}`,
+    `Descripción del servicio: ${f.desc || "(descripción)"}`,
+    `Fecha del cobro: ${fmtDate(p.at)}`,
+    `Moneda: Dólares americanos (US$)`,
+    `Monto total de honorarios: US$ ${usd(p)} (cobrado como ${fromUnits(p.gross)} USDC, 1 USDC = 1 US$)`,
+    `Equivalente para tu pago a cuenta: ${f.pen ? `S/ ${f.pen} (tipo de cambio ${f.fx})` : "(ingresa el tipo de cambio en el panel)"}`,
+    `Retención de cuarta categoría: ${withholdingLine(f.abroad !== "no")}`,
+    `Referencia interna: ${p.ref} · tx ${p.txHash}`,
+  ].join("\n");
   return [
     "DRAFT · Recibo por Honorarios Electrónico (electronic fee receipt)",
     `Issuer (Emisor): ${f.name || "(your name)"} · RUC ${f.ruc || "(your RUC)"}`,
@@ -67,33 +83,37 @@ export function openRheDraft(p: Paid, fx: number | null) {
   dlg.innerHTML = `
   <form method="dialog" class="rhe-body">
     <div class="rc-top">
-      <div><p class="lbl"><i class="ph-light ph-file-text" aria-hidden="true"></i> Draft · Recibo por Honorarios Electrónico (electronic fee receipt)</p><h3>Payment ${esc(p.ref)}</h3></div>
-      <button class="btn ghost icon" value="close" aria-label="Close"><i class="ph-light ph-x" aria-hidden="true"></i></button>
+      <div><p class="lbl"><i class="ph-light ph-file-text" aria-hidden="true"></i> ${tr("Draft · Recibo por Honorarios Electrónico (electronic fee receipt)", "Borrador · Recibo por Honorarios Electrónico")}</p><h3>${tr("Payment", "Cobro")} ${esc(p.ref)}</h3></div>
+      <button class="btn ghost icon" value="close" aria-label="${tr("Close", "Cerrar")}"><i class="ph-light ph-x" aria-hidden="true"></i></button>
     </div>
     <dl class="rhe-fixed">
-      <div><dt>Payment date</dt><dd class="num">${fmtDate(p.at)}</dd></div>
-      <div><dt>Receipt amount</dt><dd class="num">US$ ${usd(p)}</dd></div>
-      <div><dt>In soles</dt><dd class="num">${pen(p, fx) ? `S/ ${pen(p, fx)}` : "Exchange rate missing"}</dd></div>
-      <div><dt>Withholding (4th category)</dt><dd id="rhe-ret">Does not apply · client abroad</dd></div>
-      <div><dt>Client</dt><dd><select name="abroad" class="inline"><option value="yes">Outside Peru</option><option value="no">Domiciled in Peru</option></select></dd></div>
-      <div><dt>Evidence</dt><dd><a class="num" href="${EXPLORER}/tx/${p.txHash}" target="_blank" rel="noopener">${p.txHash.slice(0, 10)}… <i class="ph-light ph-arrow-up-right" aria-hidden="true"></i></a></dd></div>
+      <div><dt>${tr("Payment date", "Fecha del cobro")}</dt><dd class="num">${fmtDate(p.at)}</dd></div>
+      <div><dt>${tr("Receipt amount", "Monto del recibo")}</dt><dd class="num">US$ ${usd(p)}</dd></div>
+      <div><dt>${tr("In soles", "En soles")}</dt><dd class="num">${pen(p, fx) ? `S/ ${pen(p, fx)}` : tr("Exchange rate missing", "Falta el tipo de cambio")}</dd></div>
+      <div><dt>${tr("Withholding (4th category)", "Retención de cuarta categoría")}</dt><dd id="rhe-ret">${tr("Does not apply · client abroad", "No aplica · cliente del exterior")}</dd></div>
+      <div><dt>${tr("Client", "Cliente")}</dt><dd><select name="abroad" class="inline"><option value="yes">${tr("Outside Peru", "Fuera de Perú")}</option><option value="no">${tr("Domiciled in Peru", "Domiciliado en Perú")}</option></select></dd></div>
+      <div><dt>${tr("Evidence", "Evidencia")}</dt><dd><a class="num" href="${EXPLORER}/tx/${p.txHash}" target="_blank" rel="noopener">${p.txHash.slice(0, 10)}… <i class="ph-light ph-arrow-up-right" aria-hidden="true"></i></a></dd></div>
     </dl>
     <div class="row2">
-      <label class="field"><span class="lbl">Your name</span><input name="name" value="${esc(prof.name)}" maxlength="80"></label>
-      <label class="field"><span class="lbl">Your RUC (Peruvian taxpayer number)</span><input class="num" name="ruc" value="${esc(prof.ruc)}" inputmode="numeric" pattern="\\d{11}" maxlength="11" placeholder="10XXXXXXXXX"></label>
+      <label class="field"><span class="lbl">${tr("Your name", "Tu nombre")}</span><input name="name" value="${esc(prof.name)}" maxlength="80"></label>
+      <label class="field"><span class="lbl">${tr("Your RUC (Peruvian taxpayer number)", "Tu RUC")}</span><input class="num" name="ruc" value="${esc(prof.ruc)}" inputmode="numeric" pattern="\\d{11}" maxlength="11" placeholder="10XXXXXXXXX"></label>
     </div>
-    <label class="field"><span class="lbl">Client</span><input name="client" maxlength="80" placeholder="Name or company name"></label>
+    <label class="field"><span class="lbl">${tr("Client", "Cliente")}</span><input name="client" maxlength="80" placeholder="${tr("Name or company name", "Nombre o razón social")}"></label>
     <div class="row2">
-      <label class="field"><span class="lbl">Client ID document</span>
-        <select name="docType"><option>Passport (Pasaporte)</option><option>Tax ID from the client's country (Doc. tributario del país del cliente)</option><option>Other document (Otro documento)</option></select></label>
-      <label class="field"><span class="lbl">Number</span><input class="num" name="docNum" maxlength="20"></label>
+      <label class="field"><span class="lbl">${tr("Client ID document", "Documento del cliente")}</span>
+        <select name="docType">${tr(
+          "<option>Passport (Pasaporte)</option><option>Tax ID from the client's country (Doc. tributario del país del cliente)</option><option>Other document (Otro documento)</option>",
+          "<option>Pasaporte</option><option>Doc. tributario del país del cliente</option><option>Otro documento</option>")}</select></label>
+      <label class="field"><span class="lbl">${tr("Number", "Número")}</span><input class="num" name="docNum" maxlength="20"></label>
     </div>
-    <label class="field"><span class="lbl">Service description</span><input name="desc" maxlength="120" placeholder="Brand identity design"></label>
+    <label class="field"><span class="lbl">${tr("Service description", "Descripción del servicio")}</span><input name="desc" maxlength="120" placeholder="${tr("Brand identity design", "Diseño de identidad visual")}"></label>
     <pre class="rhe-preview num" aria-live="polite"></pre>
-    <p class="rhe-note"><i class="ph-light ph-info" aria-hidden="true"></i> Draft to copy when you issue your receipt in SUNAT Operaciones en Línea (SUNAT's online portal). The receipt can be issued in dollars; the soles equivalent is what you add up for the threshold and for the month's tax prepayment. We take 1 USDC as 1 US$. There is no SUNAT rule for crypto payments, so confirm it with your accountant.</p>
+    <p class="rhe-note"><i class="ph-light ph-info" aria-hidden="true"></i> ${tr(
+      "Draft to copy when you issue your receipt in SUNAT Operaciones en Línea (SUNAT's online portal). The receipt can be issued in dollars; the soles equivalent is what you add up for the threshold and for the month's tax prepayment. We take 1 USDC as 1 US$. There is no SUNAT rule for crypto payments, so confirm it with your accountant.",
+      "Borrador para copiar cuando emitas tu recibo en SUNAT Operaciones en Línea. El recibo se puede emitir en dólares; el equivalente en soles es lo que sumas para el umbral y para el pago a cuenta del mes. Tomamos 1 USDC como 1 US$. No hay una regla de SUNAT para cobros en cripto, así que confírmalo con tu contador.")}</p>
     <div class="actions">
-      <button type="button" class="btn" id="rhe-copy"><i class="ph-light ph-copy" aria-hidden="true"></i>Copy draft</button>
-      <a class="btn ghost" href="https://www.sunat.gob.pe/sol.html" target="_blank" rel="noopener"><i class="ph-light ph-arrow-up-right" aria-hidden="true"></i>Go to SUNAT online</a>
+      <button type="button" class="btn" id="rhe-copy"><i class="ph-light ph-copy" aria-hidden="true"></i>${tr("Copy draft", "Copiar borrador")}</button>
+      <a class="btn ghost" href="https://www.sunat.gob.pe/sol.html" target="_blank" rel="noopener"><i class="ph-light ph-arrow-up-right" aria-hidden="true"></i>${tr("Go to SUNAT online", "Ir a SUNAT en línea")}</a>
     </div>
   </form>`;
   document.body.appendChild(dlg);
@@ -106,8 +126,8 @@ export function openRheDraft(p: Paid, fx: number | null) {
     const extra = { pen: pen(p, fx) ?? "", fx: fx ? String(fx) : "" };
     const abroad = f.abroad !== "no";
     dlg.querySelector("#rhe-ret")!.textContent = abroad
-      ? "Does not apply · client abroad"
-      : "May apply · client domiciled in Peru";
+      ? tr("Does not apply · client abroad", "No aplica · cliente del exterior")
+      : tr("May apply · client domiciled in Peru", "Puede aplicar · cliente domiciliado en Perú");
     dlg.querySelector("#rhe-ret")!.className = abroad ? "" : "warn-text";
     pre.textContent = draftText(p, { ...f, ...extra });
     saveProfile({ name: f.name, ruc: f.ruc });
@@ -119,9 +139,9 @@ export function openRheDraft(p: Paid, fx: number | null) {
     const b = e.currentTarget as HTMLButtonElement;
     try {
       await navigator.clipboard.writeText(pre.textContent ?? "");
-      b.innerHTML = `<i class="ph-light ph-check" aria-hidden="true"></i>Copied`;
+      b.innerHTML = `<i class="ph-light ph-check" aria-hidden="true"></i>${tr("Copied", "Copiado")}`;
     } catch {
-      b.textContent = "Select the text and copy it";
+      b.textContent = tr("Select the text and copy it", "Selecciona el texto y cópialo");
     }
   });
   dlg.addEventListener("close", () => dlg.remove());

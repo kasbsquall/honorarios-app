@@ -15,6 +15,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { getNetworkDetails, isConnected, requestAccess, signTransaction } from "@stellar/freighter-api";
+import { tr } from "./i18n";
 
 export const NETWORK = Networks.TESTNET;
 export const RPC_URL = "https://soroban-testnet.stellar.org";
@@ -43,7 +44,7 @@ const server = new rpc.Server(RPC_URL);
 
 export function toUnits(amount: string): bigint {
   const raw = amount.trim();
-  if (raw.startsWith("-")) throw new Error("The amount cannot be negative.");
+  if (raw.startsWith("-")) throw new Error(tr("The amount cannot be negative.", "El monto no puede ser negativo."));
   const [whole, frac = ""] = raw.split(".");
   return BigInt(whole || "0") * 10n ** BigInt(DECIMALS) + BigInt(frac.padEnd(DECIMALS, "0").slice(0, DECIMALS));
 }
@@ -134,11 +135,11 @@ export async function connectWallet(): Promise<string> {
   const dev = devKeypair();
   if (dev) return dev.publicKey();
   const here = await within(isConnected(), 4000, "no-freighter").catch(() => ({ isConnected: false }));
-  if (!here?.isConnected) throw new Error("We could not find the Freighter extension in this browser.");
-  const access = await within(requestAccess(), 90_000, "Freighter did not respond. Open it and try again.");
-  if (access.error) throw new Error("Freighter rejected the connection.");
+  if (!here?.isConnected) throw new Error(tr("We could not find the Freighter extension in this browser.", "No encontramos la extensión Freighter en este navegador."));
+  const access = await within(requestAccess(), 90_000, tr("Freighter did not respond. Open it and try again.", "Freighter no respondió. Ábrelo y vuelve a intentarlo."));
+  if (access.error) throw new Error(tr("Freighter rejected the connection.", "Freighter rechazó la conexión."));
   const net = await getNetworkDetails();
-  if (net.networkPassphrase !== NETWORK) throw new Error("Switch Freighter to Testnet to continue.");
+  if (net.networkPassphrase !== NETWORK) throw new Error(tr("Switch Freighter to Testnet to continue.", "Cambia Freighter a Testnet para continuar."));
   return access.address;
 }
 
@@ -150,7 +151,7 @@ export async function sign(xdrTx: string, address: string): Promise<string> {
     return tx.toXDR();
   }
   const res = await signTransaction(xdrTx, { networkPassphrase: NETWORK, address });
-  if (res.error) throw new Error("The signature was cancelled in Freighter.");
+  if (res.error) throw new Error(tr("The signature was cancelled in Freighter.", "La firma se canceló en Freighter."));
   return res.signedTxXdr;
 }
 
@@ -169,7 +170,7 @@ export async function ensureUsdc(payer: string, amount: bigint): Promise<string 
 
   const missing = amount - (balance ?? 0n);
   const paths = await horizon.strictReceivePaths([Asset.native()], USDC, fromUnits(missing, 7)).call();
-  if (!paths.records.length) throw new Error("No XLM to USDC route is available on testnet.");
+  if (!paths.records.length) throw new Error(tr("No XLM to USDC route is available on testnet.", "No hay ruta de XLM a USDC disponible en testnet."));
   const best = paths.records[0];
   const sendMax = (Number(best.source_amount) * PATH_SLIPPAGE).toFixed(7);
   // sendMax belongs to this route, so the same route must be executed, never an empty one.
@@ -237,10 +238,10 @@ export function honorarios(publicKey?: string) {
 function hashOf(sent: any): string {
   const st = sent?.getTransactionResponse?.status;
   if (st && st !== "SUCCESS") {
-    throw new Error(`The network rejected the transaction (${st}). No funds were moved.`);
+    throw new Error(tr(`The network rejected the transaction (${st}). No funds were moved.`, `La red rechazó la transacción (${st}). No se movió ningún fondo.`));
   }
   const hash = sent?.sendTransactionResponse?.hash;
-  if (!hash) throw new Error("The network did not return the transaction hash. Check your wallet before trying again.");
+  if (!hash) throw new Error(tr("The network did not return the transaction hash. Check your wallet before trying again.", "La red no devolvió el hash de la transacción. Revisa tu wallet antes de volver a intentarlo."));
   return hash;
 }
 

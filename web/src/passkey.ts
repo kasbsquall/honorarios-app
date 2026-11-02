@@ -1,5 +1,6 @@
 import { contract } from "@stellar/stellar-sdk";
 import { IndexedDBStorage, SmartAccountKit } from "smart-account-kit";
+import { tr } from "./i18n";
 import { CONTRACT_ID, NETWORK, type Profile, RPC_URL } from "./stellar";
 
 // OpenZeppelin contracts already deployed on testnet (stellar/smart-account-kit, demo/.env.example).
@@ -36,14 +37,14 @@ export async function restorePasskey(): Promise<string | null> {
 export async function createPasskeyWallet(name: string): Promise<string> {
   const res = await getKit().createWallet("Honorarios", name || "freelancer", { autoSubmit: true });
   if (res.submitResult && !res.submitResult.success) {
-    throw new Error("The wallet could not be deployed. Try again in a moment.");
+    throw new Error(tr("The wallet could not be deployed. Try again in a moment.", "No se pudo desplegar la wallet. Intenta de nuevo en un momento."));
   }
   return res.contractId;
 }
 
 export async function connectPasskey(): Promise<string> {
   const res = await getKit().connectWallet({ prompt: true });
-  if (!res) throw new Error("We could not find a wallet for this passkey.");
+  if (!res) throw new Error(tr("We could not find a wallet for this passkey.", "No encontramos una wallet para esta passkey."));
   return res.contractId;
 }
 
@@ -56,7 +57,7 @@ export async function withdrawWithPasskey(freelancer: string, to: string, amount
   const client = (await contract.Client.from({ contractId: CONTRACT_ID, networkPassphrase: NETWORK, rpcUrl: RPC_URL })) as any;
   const tx = await client.withdraw_tax({ freelancer, to, amount });
   const res = await getKit().signAndSubmit(tx);
-  if (!res.success) throw new Error("The withdrawal did not go through. Check the amount and try again.");
+  if (!res.success) throw new Error(tr("The withdrawal did not go through. Check the amount and try again.", "El retiro no se completó. Revisa el monto y vuelve a intentarlo."));
   return res.hash;
 }
 
@@ -65,7 +66,7 @@ export async function issueWithPasskey(freelancer: string, ref: string, gross: b
   const client = (await contract.Client.from({ contractId: CONTRACT_ID, networkPassphrase: NETWORK, rpcUrl: RPC_URL })) as any;
   const tx = await client.issue({ freelancer, receipt_ref: ref, gross, concept });
   const res = await getKit().signAndSubmit(tx);
-  if (!res.success) throw new Error("The receipt was not issued. If you already used that receipt number, choose another one.");
+  if (!res.success) throw new Error(tr("The receipt was not issued. If you already used that receipt number, choose another one.", "El recibo no se emitió. Si ya usaste ese número de recibo, elige otro."));
   return res.hash;
 }
 
@@ -74,7 +75,7 @@ export async function extendWithPasskey(freelancer: string): Promise<string> {
   const client = (await contract.Client.from({ contractId: CONTRACT_ID, networkPassphrase: NETWORK, rpcUrl: RPC_URL })) as any;
   const tx = await client.extend_reserve({ freelancer }, { restore: true });
   const res = await getKit().signAndSubmit(tx);
-  if (!res.success) throw new Error("The reserve could not be renewed. Try again in a moment.");
+  if (!res.success) throw new Error(tr("The reserve could not be renewed. Try again in a moment.", "No se pudo renovar la reserva. Intenta de nuevo en un momento."));
   return res.hash;
 }
 
@@ -83,6 +84,6 @@ export async function setProfileWithPasskey(freelancer: string, p: Profile): Pro
   const client = (await contract.Client.from({ contractId: CONTRACT_ID, networkPassphrase: NETWORK, rpcUrl: RPC_URL })) as any;
   const tx = await client.set_profile({ freelancer, tax_bps: p.taxBps, utc_offset_min: p.utcOffsetMin });
   const res = await getKit().signAndSubmit(tx);
-  if (!res.success) throw new Error("Your tax settings were not saved. Try again in a moment.");
+  if (!res.success) throw new Error(tr("Your tax settings were not saved. Try again in a moment.", "No se guardó tu configuración tributaria. Intenta de nuevo en un momento."));
   return res.hash;
 }
